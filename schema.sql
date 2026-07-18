@@ -149,6 +149,8 @@ CREATE TABLE products (
     category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
     tax_rate_id UUID REFERENCES tax_rates(id) ON DELETE SET NULL,
     name TEXT NOT NULL,
+    description TEXT,
+    image_url TEXT,
     sku TEXT,
     barcode TEXT,
     price NUMERIC(12,2) NOT NULL,
@@ -225,7 +227,8 @@ CREATE TABLE order_items (
     unit_price NUMERIC(12,2) NOT NULL,
     discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
     tax_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
-    line_total NUMERIC(12,2) NOT NULL
+    line_total NUMERIC(12,2) NOT NULL,
+    notes TEXT   -- customer's special instructions, e.g. 'extra sweet, less ice'
 );
 
 -- ============================================================

@@ -1,6 +1,6 @@
 const express = require('express');
 const { authenticateHub } = require('./middleware/auth');
-const { authenticateAdmin } = require('./middleware/adminAuth');
+const authRouter = require('./routes/auth');
 const ordersRouter = require('./routes/orders');
 const storesRouter = require('./routes/stores');
 const adminRouter = require('./routes/admin');
@@ -24,9 +24,14 @@ app.use(hubRegistrationRouter);
 app.use(publicMenuRouter);
 app.use(publicOrdersRouter);
 
-// Dashboard-facing, gated by admin auth (separate from hub API keys).
-app.use(authenticateAdmin, adminHubsRouter);
-app.use(authenticateAdmin, adminRouter);
+// Public login endpoint. Auth for everything under /admin/* is now
+// handled per-route inside admin.js / adminHubs.js (authenticateUser +
+// role checks, or authenticatePlatform for the one tenant-bootstrap
+// route) rather than blanket middleware here, since different admin
+// routes need different checks.
+app.use(authRouter);
+app.use(adminRouter);
+app.use(adminHubsRouter);
 
 // Everything past this point requires a valid hub API key.
 app.use(authenticateHub, ordersRouter);

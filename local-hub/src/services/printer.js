@@ -27,6 +27,9 @@ async function printReceipt(order, items) {
   printerInst.alignLeft();
   for (const item of items) {
     printerInst.println(`${item.qty} x ${item.product_name_snapshot}  ${item.line_total}`);
+    if (item.notes) {
+      printerInst.println(`  note: ${item.notes}`);
+    }
   }
   printerInst.drawLine();
   printerInst.println(`Total: ${order.total}`);

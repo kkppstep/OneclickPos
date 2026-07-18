@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS order_items (
   unit_price REAL NOT NULL,
   discount_amount REAL NOT NULL DEFAULT 0,
   tax_amount REAL NOT NULL DEFAULT 0,
-  line_total REAL NOT NULL
+  line_total REAL NOT NULL,
+  notes TEXT
 );
 
 CREATE TABLE IF NOT EXISTS payments (

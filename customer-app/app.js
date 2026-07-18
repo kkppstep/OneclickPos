@@ -1,12 +1,12 @@
 // ============================================================
 // Config
 // ============================================================
-// Same platform URL for every store — the store is selected by the
-// ?store= param from the table's QR code. Replace with your deployed
-// cloud API origin.
 const CLOUD_API_BASE = 'https://api.yourpos.com';
 const CLOUD_TIMEOUT_MS = 4000;
 const LOCAL_HUB_TIMEOUT_MS = 4000;
+const PLACEHOLDER_IMAGE = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="400" height="300" fill="%23EAF7EE"/></svg>'
+);
 
 // ============================================================
 // State
@@ -14,11 +14,14 @@ const LOCAL_HUB_TIMEOUT_MS = 4000;
 const state = {
   storeId: null,
   table: '',
-  menu: [],          // [{ id, name, categories: [{id,name, products:[...]}] }]
-  localHubUrl: null,  // e.g. "http://192.168.1.50:4000" — only reachable on store wifi
+  menu: [],
+  localHubUrl: null,
   kbzpayQrUrl: null,
-  cart: new Map(),    // product_id -> { product_id, name, price, qty }
+  cart: [], // { lineId, product_id, name, price, qty, notes }
+  activeProduct: null,
 };
+
+let productModal, checkoutModal;
 
 // ============================================================
 // Networking helpers
@@ -42,20 +45,15 @@ function getParams() {
 
 // ============================================================
 // Load menu
-// Depends on a public, unauthenticated (or lightly-keyed) endpoint:
-//   GET /public/stores/:storeId/menu
-// expected to return { categories, local_hub_url, kbzpay_qr_url }.
-// Not yet built on the cloud API — see cloud-api project.
 // ============================================================
 async function loadMenu() {
   const { storeId, table } = getParams();
   state.storeId = storeId;
   state.table = table;
-
   document.getElementById('tableBadge').textContent = table ? `Table ${table}` : '';
 
   if (!storeId) {
-    renderMessage('No store found. Please rescan the table QR code.', true);
+    showMessage('No store found. Please rescan the table QR code.', true);
     return;
   }
 
@@ -64,206 +62,257 @@ async function loadMenu() {
     state.menu = data.categories || [];
     state.localHubUrl = data.local_hub_url || null;
     state.kbzpayQrUrl = data.kbzpay_qr_url || null;
+    document.getElementById('loadingMessage').hidden = true;
+    renderCategoryNav();
     renderMenu();
+    observeSections();
   } catch (err) {
-    // Unlike order submission, there's no local fallback for loading
-    // the menu itself — we don't know the hub's LAN address until the
-    // cloud tells us. If the cloud is unreachable, the customer needs
-    // to be on wifi that has internet, or try again shortly.
-    renderMessage("Can't load the menu right now. Check you're connected to the wifi and try again.", true);
+    showMessage("Can't load the menu right now. Check you're connected to the wifi and try again.", true);
   }
 }
 
+function showMessage(text, isError) {
+  const el = document.getElementById('loadingMessage');
+  el.hidden = false;
+  el.textContent = text;
+  el.className = 'state-message' + (isError ? ' error' : '');
+}
+
 // ============================================================
-// Rendering — menu
+// Rendering — category nav + menu sections
 // ============================================================
-function renderMessage(text, isError = false) {
-  const main = document.getElementById('app');
-  main.innerHTML = `<div class="state-message${isError ? ' error' : ''}">${escapeHtml(text)}</div>`;
+function renderCategoryNav() {
+  const nav = document.getElementById('categoryNav');
+  nav.innerHTML = state.menu.map((cat, i) => `
+    <button class="category-pill${i === 0 ? ' active' : ''}" data-target="cat-${cat.id}">${escapeHtml(cat.name)}</button>
+  `).join('');
+
+  nav.querySelectorAll('.category-pill').forEach((pill) => {
+    pill.addEventListener('click', () => {
+      document.getElementById(pill.dataset.target)?.scrollIntoView({ behavior: 'smooth' });
+    });
+  });
 }
 
 function renderMenu() {
-  const main = document.getElementById('app');
-  main.innerHTML = '';
+  const menuEl = document.getElementById('menu');
+  menuEl.innerHTML = state.menu.map((cat) => `
+    <section class="category-section" id="cat-${cat.id}">
+      <div class="category-title">${escapeHtml(cat.name)}</div>
+      ${cat.products.map((p) => productCardHtml(p)).join('')}
+    </section>
+  `).join('');
 
-  if (state.menu.length === 0) {
-    renderMessage('No items available right now.');
-    return;
-  }
-
-  for (const category of state.menu) {
-    const block = document.createElement('div');
-    block.className = 'category-block';
-    block.innerHTML = `
-      <h2 class="category-title">${escapeHtml(category.name)}</h2>
-      <hr class="category-divider">
-    `;
-
-    for (const product of category.products) {
-      block.appendChild(renderProductCard(product));
-    }
-    main.appendChild(block);
-  }
-
-  updateCartBar();
+  menuEl.querySelectorAll('.product-card').forEach((card) => {
+    card.addEventListener('click', () => openProductModal(card.dataset.productId));
+  });
 }
 
-function renderProductCard(product) {
-  const card = document.createElement('div');
-  card.className = 'product-card';
-  card.innerHTML = `
-    <div class="product-info">
-      <div class="product-name">${escapeHtml(product.name)}</div>
-      <div class="product-price">${formatMoney(product.price)}</div>
-    </div>
-    <div class="qty-control" data-product-id="${product.id}">
-      <button class="qty-btn minus" aria-label="Remove one">−</button>
-      <span class="qty-value">0</span>
-      <button class="qty-btn add" aria-label="Add one">+</button>
+function productCardHtml(product) {
+  return `
+    <div class="card product-card" data-product-id="${product.id}">
+      <img src="${product.image_url || PLACEHOLDER_IMAGE}" alt="${escapeHtml(product.name)}" loading="lazy">
+      <div class="card-body">
+        <div class="card-title">${escapeHtml(product.name)}</div>
+        ${product.description ? `<div class="card-text">${escapeHtml(product.description)}</div>` : ''}
+        <div class="price-row">
+          <span class="price">${formatMoney(product.price)}</span>
+          <button class="add-btn" aria-label="Add ${escapeHtml(product.name)}">+</button>
+        </div>
+      </div>
     </div>
   `;
+}
 
-  const qtyEl = card.querySelector('.qty-value');
-  card.querySelector('.add').addEventListener('click', () => {
-    changeCartQty(product, 1);
-    qtyEl.textContent = state.cart.get(product.id)?.qty || 0;
-  });
-  card.querySelector('.minus').addEventListener('click', () => {
-    changeCartQty(product, -1);
-    qtyEl.textContent = state.cart.get(product.id)?.qty || 0;
-  });
+// Highlights the category pill matching whichever section is in view —
+// this is the "easy scroll between sub-menus" behavior.
+function observeSections() {
+  const sections = document.querySelectorAll('.category-section');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        const id = entry.target.id;
+        document.querySelectorAll('.category-pill').forEach((pill) => {
+          pill.classList.toggle('active', pill.dataset.target === id);
+        });
+      }
+    });
+  }, { rootMargin: '-100px 0px -70% 0px' });
+  sections.forEach((s) => observer.observe(s));
+}
 
-  return card;
+function findProduct(productId) {
+  for (const cat of state.menu) {
+    const found = cat.products.find((p) => p.id === productId);
+    if (found) return found;
+  }
+  return null;
+}
+
+// ============================================================
+// Product modal — quantity stepper + comment, then add to cart
+// ============================================================
+function openProductModal(productId) {
+  const product = findProduct(productId);
+  if (!product) return;
+
+  let qty = 1;
+  const content = document.getElementById('productModalContent');
+
+  function render() {
+    content.innerHTML = `
+      <img class="pm-image" src="${product.image_url || PLACEHOLDER_IMAGE}" alt="${escapeHtml(product.name)}">
+      <div class="pm-body">
+        <div class="pm-title">${escapeHtml(product.name)}</div>
+        ${product.description ? `<div class="pm-desc">${escapeHtml(product.description)}</div>` : ''}
+        <div class="pm-price">${formatMoney(product.price)}</div>
+
+        <div class="qty-stepper">
+          <button class="qty-btn" id="qtyMinus" aria-label="Decrease quantity">−</button>
+          <span class="qty-value" id="qtyValue">${qty}</span>
+          <button class="qty-btn" id="qtyPlus" aria-label="Increase quantity">+</button>
+        </div>
+
+        <label class="comment-label" for="itemComment">Any requests? (e.g. more sweet, less spicy)</label>
+        <textarea class="comment-input" id="itemComment" rows="2" placeholder="Optional"></textarea>
+
+        <button class="btn-green" id="addToCartBtn">Add to order — ${formatMoney(product.price * qty)}</button>
+      </div>
+    `;
+
+    document.getElementById('qtyMinus').addEventListener('click', () => { if (qty > 1) { qty--; render(); } });
+    document.getElementById('qtyPlus').addEventListener('click', () => { qty++; render(); });
+    document.getElementById('addToCartBtn').addEventListener('click', () => {
+      const notes = document.getElementById('itemComment').value.trim();
+      addToCart(product, qty, notes);
+      productModal.hide();
+    });
+  }
+
+  render();
+  productModal.show();
 }
 
 // ============================================================
 // Cart
 // ============================================================
-function changeCartQty(product, delta) {
-  const existing = state.cart.get(product.id);
-  const nextQty = (existing?.qty || 0) + delta;
+function addToCart(product, qty, notes) {
+  state.cart.push({
+    lineId: crypto.randomUUID(),
+    product_id: product.id,
+    name: product.name,
+    price: product.price,
+    qty,
+    notes: notes || null,
+  });
+  updateCartBar();
+}
 
-  if (nextQty <= 0) {
-    state.cart.delete(product.id);
-  } else {
-    state.cart.set(product.id, { product_id: product.id, name: product.name, price: product.price, qty: nextQty });
-  }
+function removeFromCart(lineId) {
+  state.cart = state.cart.filter((line) => line.lineId !== lineId);
   updateCartBar();
 }
 
 function cartTotal() {
-  let total = 0;
-  for (const item of state.cart.values()) total += item.price * item.qty;
-  return total;
+  return state.cart.reduce((sum, line) => sum + line.price * line.qty, 0);
 }
-
 function cartItemCount() {
-  let count = 0;
-  for (const item of state.cart.values()) count += item.qty;
-  return count;
+  return state.cart.reduce((sum, line) => sum + line.qty, 0);
 }
 
 function updateCartBar() {
   const bar = document.getElementById('cartBar');
   const count = cartItemCount();
-  if (count === 0) {
-    bar.hidden = true;
-    return;
-  }
+  if (count === 0) { bar.hidden = true; return; }
   bar.hidden = false;
   document.getElementById('cartCount').textContent = `${count} item${count > 1 ? 's' : ''}`;
   document.getElementById('cartTotal').textContent = formatMoney(cartTotal());
 }
 
-document.getElementById('cartBar').addEventListener('click', openCartDrawer);
-document.getElementById('drawerBackdrop').addEventListener('click', closeDrawer);
+document.getElementById('cartBar').addEventListener('click', () => openCheckout('cart'));
 
 // ============================================================
-// Drawer: cart review -> payment method -> confirmation
+// Checkout modal — cart review -> payment -> confirmation
 // ============================================================
-function openDrawer() {
-  document.getElementById('drawerBackdrop').hidden = false;
-  document.getElementById('drawer').hidden = false;
-}
-function closeDrawer() {
-  document.getElementById('drawerBackdrop').hidden = true;
-  document.getElementById('drawer').hidden = true;
+let selectedPayment = 'cash';
+
+function openCheckout(step) {
+  if (step === 'cart') renderCartStep();
+  else if (step === 'payment') renderPaymentStep();
+  checkoutModal.show();
 }
 
-function openCartDrawer() {
-  const content = document.getElementById('drawerContent');
-  const items = Array.from(state.cart.values());
-
+function renderCartStep() {
+  const content = document.getElementById('checkoutModalContent');
   content.innerHTML = `
-    <h2>Your order — Table ${escapeHtml(state.table)}</h2>
-    <div id="lineItems"></div>
-    <div class="summary-row total">
-      <span>Total</span><span>${formatMoney(cartTotal())}</span>
+    <div class="pm-body">
+      <div class="pm-title">Your order — Table ${escapeHtml(state.table)}</div>
+      <div id="lineItems" style="margin: 14px 0;"></div>
+      <div class="summary-total"><span>Total</span><span>${formatMoney(cartTotal())}</span></div>
+      <button class="btn-green" id="toPaymentBtn" style="margin-top:16px;">Choose payment</button>
+      <button class="btn-green-outline" data-bs-dismiss="modal">Back to menu</button>
     </div>
-    <button class="btn-primary" id="toPaymentBtn">Choose payment</button>
-    <button class="btn-secondary" id="backToMenuBtn">Back to menu</button>
   `;
 
   const lineItemsEl = content.querySelector('#lineItems');
-  for (const item of items) {
-    const row = document.createElement('div');
-    row.className = 'line-item';
-    row.innerHTML = `
+  lineItemsEl.innerHTML = state.cart.map((line) => `
+    <div class="line-item">
       <div>
-        <div class="line-item-name">${escapeHtml(item.name)}</div>
-        <div class="line-item-sub">${item.qty} × ${formatMoney(item.price)}</div>
+        <div class="line-item-name">${line.qty} × ${escapeHtml(line.name)}</div>
+        ${line.notes ? `<div class="line-item-note">${escapeHtml(line.notes)}</div>` : ''}
+        <div class="line-item-sub">${formatMoney(line.price)} each</div>
       </div>
-      <div>${formatMoney(item.price * item.qty)}</div>
-    `;
-    lineItemsEl.appendChild(row);
-  }
+      <div style="text-align:right;">
+        <div>${formatMoney(line.price * line.qty)}</div>
+        <button class="btn btn-sm btn-link text-danger p-0 remove-line" data-line-id="${line.lineId}" style="font-size:0.75rem;">Remove</button>
+      </div>
+    </div>
+  `).join('');
 
-  content.querySelector('#toPaymentBtn').addEventListener('click', openPaymentDrawer);
-  content.querySelector('#backToMenuBtn').addEventListener('click', closeDrawer);
-  openDrawer();
+  content.querySelectorAll('.remove-line').forEach((btn) => {
+    btn.addEventListener('click', () => { removeFromCart(btn.dataset.lineId); renderCartStep(); });
+  });
+  content.querySelector('#toPaymentBtn').addEventListener('click', renderPaymentStep);
 }
 
-let selectedPayment = 'cash';
-
-function openPaymentDrawer() {
-  const content = document.getElementById('drawerContent');
-  content.innerHTML = `
-    <h2>How will you pay?</h2>
-    <div id="paymentOptions"></div>
-    <div id="qrArea"></div>
-    <button class="btn-primary" id="placeOrderBtn">Place order</button>
-    <button class="btn-secondary" id="backToCartBtn">Back</button>
-  `;
-
+function renderPaymentStep() {
+  const content = document.getElementById('checkoutModalContent');
   const options = [
     { id: 'cash', label: 'Cash', hint: 'Pay at the counter' },
     ...(state.kbzpayQrUrl ? [{ id: 'kbzpay', label: 'KBZPay', hint: 'Scan the QR to pay now' }] : []),
   ];
 
-  const optionsEl = content.querySelector('#paymentOptions');
-  for (const opt of options) {
-    const el = document.createElement('div');
-    el.className = 'payment-option' + (opt.id === selectedPayment ? ' selected' : '');
-    el.innerHTML = `<div>${opt.label}<span class="hint">${opt.hint}</span></div>`;
-    el.addEventListener('click', () => {
-      selectedPayment = opt.id;
-      openPaymentDrawer(); // re-render with new selection
-    });
-    optionsEl.appendChild(el);
-  }
+  content.innerHTML = `
+    <div class="pm-body">
+      <div class="pm-title">How will you pay?</div>
+      <div id="paymentOptions" style="margin: 14px 0;"></div>
+      <div id="qrArea"></div>
+      <button class="btn-green" id="placeOrderBtn">Place order</button>
+      <button class="btn-green-outline" id="backToCartBtn">Back</button>
+    </div>
+  `;
 
-  const qrArea = content.querySelector('#qrArea');
+  const optsEl = content.querySelector('#paymentOptions');
+  optsEl.innerHTML = options.map((opt) => `
+    <div class="payment-option${opt.id === selectedPayment ? ' selected' : ''}" data-id="${opt.id}">
+      ${opt.label}<span class="hint">${opt.hint}</span>
+    </div>
+  `).join('');
+  optsEl.querySelectorAll('.payment-option').forEach((el) => {
+    el.addEventListener('click', () => { selectedPayment = el.dataset.id; renderPaymentStep(); });
+  });
+
   if (selectedPayment === 'kbzpay' && state.kbzpayQrUrl) {
-    qrArea.innerHTML = `
+    content.querySelector('#qrArea').innerHTML = `
       <div class="qr-panel">
         <img src="${state.kbzpayQrUrl}" alt="KBZPay QR code">
-        <div class="qr-note">Scan with your KBZPay app, then place your order. Staff will confirm payment at the counter.</div>
+        <div class="line-item-sub">Scan with your KBZPay app, then place your order. Staff will confirm payment at the counter.</div>
       </div>
     `;
   }
 
   content.querySelector('#placeOrderBtn').addEventListener('click', handlePlaceOrder);
-  content.querySelector('#backToCartBtn').addEventListener('click', openCartDrawer);
+  content.querySelector('#backToCartBtn').addEventListener('click', renderCartStep);
 }
 
 async function handlePlaceOrder() {
@@ -278,44 +327,42 @@ async function handlePlaceOrder() {
   } else {
     btn.disabled = false;
     btn.textContent = 'Place order';
-    const content = document.getElementById('drawerContent');
+    const content = document.getElementById('checkoutModalContent');
     const errorEl = document.createElement('div');
     errorEl.className = 'state-message error';
-    errorEl.textContent = "Couldn't reach the kitchen. Please check you're connected to the wifi and try again.";
-    content.prepend(errorEl);
+    errorEl.style.padding = '8px 0';
+    errorEl.textContent = "Couldn't reach the kitchen. Check you're connected to the wifi and try again.";
+    content.querySelector('.pm-body').prepend(errorEl);
   }
 }
 
 function showConfirmation() {
-  const content = document.getElementById('drawerContent');
-  content.innerHTML = `
+  document.getElementById('checkoutModalContent').innerHTML = `
     <div class="confirmation">
       <div class="mark">✓</div>
-      <h2>Order placed</h2>
-      <p>Table ${escapeHtml(state.table)} — the kitchen has your order.</p>
-      <button class="btn-primary" id="doneBtn">Done</button>
+      <div class="pm-title">Order placed</div>
+      <div class="line-item-sub">Table ${escapeHtml(state.table)} — the kitchen has your order.</div>
+      <button class="btn-green" id="doneBtn" style="margin-top:18px;">Done</button>
     </div>
   `;
-  content.querySelector('#doneBtn').addEventListener('click', () => {
-    state.cart.clear();
+  document.getElementById('doneBtn').addEventListener('click', () => {
+    state.cart = [];
     updateCartBar();
-    closeDrawer();
+    checkoutModal.hide();
   });
 }
 
 // ============================================================
-// Order submission — tries the cloud first (works over store wifi
-// with internet, or the customer's own mobile data), falls back to
-// the local hub over LAN only if the cloud call fails. The hub
-// fallback only succeeds if this phone is on the store's own wifi.
+// Order submission — cloud first, local hub fallback (LAN only)
 // ============================================================
 function buildOrderPayload(paymentMethod) {
-  const items = Array.from(state.cart.values()).map((item) => ({
-    product_id: item.product_id,
-    product_name_snapshot: item.name,
-    qty: item.qty,
-    unit_price: item.price,
-    line_total: item.price * item.qty,
+  const items = state.cart.map((line) => ({
+    product_id: line.product_id,
+    product_name_snapshot: line.name,
+    qty: line.qty,
+    unit_price: line.price,
+    line_total: line.price * line.qty,
+    notes: line.notes,
   }));
   const subtotal = items.reduce((sum, i) => sum + i.line_total, 0);
 
@@ -330,11 +377,7 @@ function buildOrderPayload(paymentMethod) {
     discount_total: 0,
     total: subtotal,
     items,
-    payments: [{
-      method: paymentMethod,
-      amount: subtotal,
-      status: paymentMethod === 'cash' ? 'confirmed' : 'pending',
-    }],
+    payments: [{ method: paymentMethod, amount: subtotal, status: paymentMethod === 'cash' ? 'confirmed' : 'pending' }],
   };
 }
 
@@ -350,7 +393,6 @@ async function submitOrder(paymentMethod) {
     return { ok: true, via: 'cloud' };
   } catch (cloudErr) {
     if (!state.localHubUrl) return { ok: false };
-
     try {
       await fetchWithTimeout(
         `${state.localHubUrl}/orders`,
@@ -370,7 +412,6 @@ async function submitOrder(paymentMethod) {
 function formatMoney(amount) {
   return `${Number(amount).toLocaleString()} MMK`;
 }
-
 function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str ?? '';
@@ -378,4 +419,8 @@ function escapeHtml(str) {
 }
 
 // ============================================================
-loadMenu();
+document.addEventListener('DOMContentLoaded', () => {
+  productModal = new bootstrap.Modal(document.getElementById('productModal'));
+  checkoutModal = new bootstrap.Modal(document.getElementById('checkoutModal'));
+  loadMenu();
+});

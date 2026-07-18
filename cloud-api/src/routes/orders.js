@@ -47,11 +47,11 @@ router.post('/orders', async (req, res) => {
     for (const item of items) {
       await client.query(
         `INSERT INTO order_items
-           (id, order_id, product_id, product_name_snapshot, qty, unit_price, discount_amount, tax_amount, line_total)
-         VALUES (gen_random_uuid(), $1,$2,$3,$4,$5,$6,$7,$8)`,
+           (id, order_id, product_id, product_name_snapshot, qty, unit_price, discount_amount, tax_amount, line_total, notes)
+         VALUES (gen_random_uuid(), $1,$2,$3,$4,$5,$6,$7,$8,$9)`,
         [
           id, item.product_id, item.product_name_snapshot, item.qty, item.unit_price,
-          item.discount_amount || 0, item.tax_amount || 0, item.line_total,
+          item.discount_amount || 0, item.tax_amount || 0, item.line_total, item.notes || null,
         ]
       );
     }

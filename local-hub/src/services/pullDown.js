@@ -36,13 +36,14 @@ async function pullPendingOrders(timeoutMs) {
       });
 
       const insertItem = db.prepare(`
-        INSERT INTO order_items (id, order_id, product_id, product_name_snapshot, qty, unit_price, discount_amount, tax_amount, line_total)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO order_items (id, order_id, product_id, product_name_snapshot, qty, unit_price, discount_amount, tax_amount, line_total, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       for (const item of order.items) {
         insertItem.run(
           uuidv4(), order.id, item.product_id, item.product_name_snapshot,
-          item.qty, item.unit_price, item.discount_amount || 0, item.tax_amount || 0, item.line_total
+          item.qty, item.unit_price, item.discount_amount || 0, item.tax_amount || 0, item.line_total,
+          item.notes || null
         );
       }
     }

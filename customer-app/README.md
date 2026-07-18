@@ -1,59 +1,54 @@
 # Customer ordering page
 
-A single, static, framework-free page — loads fast on weak connections and
-needs no install. Opened by scanning a table's QR code, which points at:
+Bootstrap-based, mobile-first, image-led menu. Opened by scanning a
+table's QR code:
 
 ```
 https://order.yourpos.com/?store=<store_id>&table=<table_number>
 ```
 
-Each table gets its own QR code (same URL, different `table` value).
+## UX
 
-## How it decides where to send the order
+- Sticky top bar with a horizontally-scrollable row of category pills.
+  Tapping a pill smooth-scrolls to that section; scrolling manually
+  updates the active pill automatically (IntersectionObserver), so
+  browsing works either by tapping or by scrolling -- "easy scroll
+  between sub-menus."
+- One product card per row: image on top, name, short description,
+  price, and a + button. All products for all categories are on one
+  continuously scrollable page -- the category pills are navigation
+  shortcuts, not separate pages.
+- Tapping a card opens a modal: larger image, description, a quantity
+  stepper, and a free-text comment field ("more sweet", "less spicy",
+  etc.) -- saved as `notes` on that order line and printed on the
+  kitchen ticket.
+- Adding an item shows a floating green bar at the bottom with the
+  running item count and total. Tapping it opens the cart, then payment
+  (cash or KBZPay QR), then a confirmation screen.
 
-1. **Load the menu** — always from the cloud (`GET /public/stores/:id/menu`).
-   There's no local fallback for this step: until the cloud responds, the
-   page doesn't know the local hub's LAN address to fall back to.
-2. **Submit the order** — tries the cloud first
-   (`POST /public/stores/:id/orders`), which works over store wifi with a
-   working internet connection, or the customer's own mobile data.
-   If that call fails or times out, it falls back to posting straight to
-   the local hub (`POST {local_hub_url}/orders`) over the store's LAN —
-   this only succeeds if the customer's phone is on the store's own wifi.
-   A customer on pure mobile data has no LAN path, but doesn't need one:
-   their connection is independent of the store's, so it usually still
-   works during a store-side outage.
+## Dependencies
 
-## Payment
-
-Cash is always available and is marked `confirmed` immediately. If the
-store has a KBZPay QR configured (`kbzpay_qr_url` from the menu response),
-it's offered as a second option: the customer scans it with their own
-KBZPay app, and the order is submitted with that payment marked `pending`
-— staff confirm it manually at the counter (`confirmed_by: staff_override`
-in `schema.sql`). No webhook, no live confirmation.
+- `product.image_url` and `product.description` -- added to `schema.sql`
+  and the admin dashboard's product form. Products created before this
+  change will render with a plain placeholder image and no description
+  until edited.
+- `order_items.notes` -- added to `schema.sql`, both cloud order routes,
+  and the local hub, so a customer's comment survives all the way to
+  the printed ticket.
+- `GET /public/stores/:id/menu` and `POST /public/stores/:id/orders` --
+  same cloud endpoints as before, now also returning/accepting
+  `description`, `image_url`, and `notes`.
 
 ## Design
 
-Palette and structure draw from Myanmar lacquerware — ink black, a single
-lacquer-red accent, a gold hairline dividing sections — kept to four colors
-so the accent stays legible. Type is the system font stack on purpose, not
-a placeholder: this page runs over the same unreliable connections the
-rest of the platform is built around, so it loads zero font files.
+Green theme as specified -- a single accent green (#1B7A3D) with a pale
+tint for image placeholders, kept to two shades plus neutral text so
+the accent stays legible. Bootstrap 5 (CDN, no build step) for layout
+primitives and the modal/dialog behavior; custom CSS on top for the
+card, pill, and cart-bar look. Fast-loading images: cards use
+loading="lazy" so only visible rows fetch images as the customer
+scrolls, and a lightweight inline SVG placeholder (no network request)
+covers products without an image yet.
 
-## Not yet implemented / dependencies
-
-This page assumes two cloud endpoints that don't exist yet:
-
-- `GET /public/stores/:id/menu` — should return
-  `{ categories: [{ id, name, products: [{ id, name, price }] }], local_hub_url, kbzpay_qr_url }`.
-- `POST /public/stores/:id/orders` — the public, lightly-protected sibling
-  of the hub-authenticated `/orders` route in `cloud-api/`.
-
-Also assumes the local hub's existing `POST /orders` route (already built
-in `local-hub/`) accepts orders from this page's payload shape — it's
-close to what the terminal already sends, but add `table_number` and
-`channel` handling there if they're not accounted for yet.
-
-Replace `CLOUD_API_BASE` in `app.js` with your deployed API origin before
+Replace CLOUD_API_BASE in app.js with your deployed API origin before
 generating table QR codes.

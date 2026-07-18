@@ -37,7 +37,7 @@ router.get('/public/stores/:storeId/menu', async (req, res) => {
   // discontinued items without deleting order history that references them.
   const rowsRes = await db.query(
     `SELECT c.id AS category_id, c.name AS category_name, c.sort_order,
-            p.id AS product_id, p.name AS product_name, p.price
+            p.id AS product_id, p.name AS product_name, p.description, p.image_url, p.price
      FROM categories c
      JOIN products p ON p.category_id = c.id AND p.tenant_id = c.tenant_id
      WHERE c.tenant_id = $1 AND p.is_active = true
@@ -57,6 +57,8 @@ router.get('/public/stores/:storeId/menu', async (req, res) => {
     categoriesById.get(row.category_id).products.push({
       id: row.product_id,
       name: row.product_name,
+      description: row.description,
+      image_url: row.image_url,
       price: Number(row.price),
     });
   }

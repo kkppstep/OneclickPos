@@ -22,13 +22,15 @@ separate, always-on deployment per store, not part of the web deploy.
    pgbouncer URL) as `DATABASE_URL` — see `cloud-api/src/db.js`.
 
 2. **`cloud-api`** — `vercel deploy` from inside `cloud-api/`. Set
-   `DATABASE_URL` and `ADMIN_API_KEY` as environment variables in the
-   Vercel project. Note the deployed URL.
+   `DATABASE_URL`, `PLATFORM_API_KEY`, and `JWT_SECRET` as environment
+   variables in the Vercel project. Note the deployed URL.
 
 3. **`admin-app`** — `vercel deploy` from inside `admin-app/` (or drag
    the folder into the Vercel dashboard — it's static, no build step).
-   Open it, go to **Connection**, and enter the `cloud-api` URL and your
-   `ADMIN_API_KEY`.
+   Open it, go to **Log in**, and use the "first time setting up a new
+   business?" section with your `PLATFORM_API_KEY` to create your first
+   tenant and owner login. From then on, log in normally — no platform
+   key needed again.
 
 4. **`customer-app`** — before deploying, set `CLOUD_API_BASE` at the
    top of `customer-app/app.js` to your `cloud-api` URL. Then
@@ -44,9 +46,10 @@ separate, always-on deployment per store, not part of the web deploy.
 ## What still needs work before this is production-ready
 
 Each folder's own README has a "not yet implemented" section — the
-short version: real admin/staff login (currently a placeholder shared
-key), rate limiting on the two public customer-facing endpoints, and
-order voids/refunds with audit logging. The core resilient-ordering
-loop (customer places an order → cloud or local hub, whichever is
-reachable → printed at the counter → synced when back online) is
-built and wired end to end.
+short version: adding staff beyond a tenant's first owner (no invite
+UI yet), rate limiting on the two public customer-facing endpoints,
+and order voids/refunds with audit logging. Real login (owner/manager/
+staff, JWT-based, per-store roles) and the core resilient-ordering loop
+(customer places an order → cloud or local hub, whichever is
+reachable → printed at the counter → synced when back online) are
+both built and wired end to end.
