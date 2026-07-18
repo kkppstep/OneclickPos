@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>POS Admin</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand">POS Admin</div>
+    <button class="nav-item active" data-tab="settings">Connection</button>
+    <button class="nav-item" data-tab="tenants">Tenants</button>
+    <button class="nav-item" data-tab="stores">Stores</button>
+    <button class="nav-item" data-tab="categories">Categories</button>
+    <button class="nav-item" data-tab="products">Products</button>
+    <button class="nav-item" data-tab="provisioning">Hub setup</button>
+    <button class="nav-item" data-tab="qrcodes">Table QR codes</button>
+    <button class="nav-item" data-tab="orders">Orders</button>
+    <div class="context" id="contextBar"></div>
+  </nav>
+
+  <main class="content" id="content"></main>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
