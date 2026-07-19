@@ -1,7 +1,8 @@
 // ============================================================
 // Config
+// See config.js — edit CLOUD_API_BASE there, not here.
 // ============================================================
-const CLOUD_API_BASE = 'https://oneclick-pos.vercel.app';
+const CLOUD_API_BASE = (window.POS_CONFIG && window.POS_CONFIG.CLOUD_API_BASE) || '';
 const CLOUD_TIMEOUT_MS = 4000;
 const LOCAL_HUB_TIMEOUT_MS = 4000;
 const PLACEHOLDER_IMAGE = 'data:image/svg+xml;utf8,' + encodeURIComponent(

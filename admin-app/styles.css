@@ -149,6 +149,21 @@ tbody tr:hover { background: #fff; }
 .qr-box .link-text { word-break: break-all; font-size: 0.8rem; color: var(--text-muted); margin-top: 10px; }
 .qr-box .qr-actions { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
 
+/* ---------- Drag-and-drop upload ---------- */
+.drop-zone {
+  border: 2px dashed var(--ivory-dim);
+  border-radius: 10px;
+  padding: 16px;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  margin-bottom: 10px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.drop-zone:hover, .drop-zone.drag-active { border-color: var(--red); background: #fdf6f2; }
+.drop-zone-status { font-size: 0.78rem; margin-top: 4px; min-height: 1em; }
+
 .login-grid { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
 .login-grid .card { flex: 1; min-width: 280px; }
 

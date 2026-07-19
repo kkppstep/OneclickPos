@@ -2,7 +2,7 @@
 // State
 // ============================================================
 const state = {
-  apiBase: localStorage.getItem('apiBase') || '',
+  apiBase: localStorage.getItem('apiBase') || (window.POS_CONFIG && window.POS_CONFIG.CLOUD_API_BASE) || '',
   customerAppUrl: localStorage.getItem('customerAppUrl') || '',
   token: localStorage.getItem('token') || '',
   user: JSON.parse(localStorage.getItem('user') || 'null'),
@@ -91,6 +91,56 @@ function updateContextBar() {
 
 function setContent(html) { document.getElementById('content').innerHTML = html; }
 function escapeHtml(str) { const d = document.createElement('div'); d.textContent = str ?? ''; return d.innerHTML; }
+
+// ============================================================
+// Reusable drag-and-drop file upload
+// Wires a drop-zone element to: drag/drop, click-to-browse, upload via
+// POST /admin/uploads, and fill the resulting URL into a target input.
+// ============================================================
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function attachUploadZone(zoneId, inputId, statusId, accept) {
+  const zone = document.getElementById(zoneId);
+  const input = document.getElementById(inputId);
+  const status = document.getElementById(statusId);
+  if (!zone) return;
+
+  async function handleFile(file) {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { status.textContent = 'File is larger than 5MB — use a smaller file.'; return; }
+    status.textContent = 'Uploading…';
+    try {
+      const data = await fileToBase64(file);
+      const result = await api('/admin/uploads', { method: 'POST', body: { filename: file.name, contentType: file.type, data } });
+      input.value = result.url;
+      status.textContent = `Uploaded: ${escapeHtml(file.name)}`;
+    } catch (err) {
+      status.textContent = `Upload failed: ${err.message}`;
+    }
+  }
+
+  zone.addEventListener('click', () => {
+    const picker = document.createElement('input');
+    picker.type = 'file';
+    if (accept) picker.accept = accept;
+    picker.onchange = () => handleFile(picker.files[0]);
+    picker.click();
+  });
+  ['dragover', 'dragenter'].forEach((evt) => zone.addEventListener(evt, (e) => { e.preventDefault(); zone.classList.add('drag-active'); }));
+  ['dragleave', 'drop'].forEach((evt) => zone.addEventListener(evt, (e) => { e.preventDefault(); zone.classList.remove('drag-active'); }));
+  zone.addEventListener('drop', (e) => handleFile(e.dataTransfer.files[0]));
+}
+
+function dropZoneHtml(zoneId, label) {
+  return `<div class="drop-zone" id="${zoneId}">${label}<div class="drop-zone-status" id="${zoneId}-status"></div></div>`;
+}
 
 // ============================================================
 // Login (and one-time tenant bootstrap for the platform operator)
@@ -192,13 +242,22 @@ async function renderStores() {
       <div class="field"><label>Store name</label><input id="storeName"></div>
       <div class="field"><label>Address</label><input id="storeAddress"></div>
       <div class="field"><label>Region / state</label><input id="storeRegion" placeholder="e.g. Yangon, Rakhine, Kachin"></div>
-      <div class="field"><label>KBZPay QR image URL (optional)</label><input id="storeKbzQr" placeholder="https://.../kbzpay-qr.png"></div>
-      <div class="field"><label>Ambient music URL (optional)</label><input id="storeAmbientUrl" placeholder="https://.../lobby-loop.mp3"></div>
+      <div class="field"><label>KBZPay QR image (optional)</label>
+        ${dropZoneHtml('storeKbzDrop', 'Drag the QR image here, or click to browse')}
+        <input id="storeKbzQr" placeholder="https://.../kbzpay-qr.png">
+      </div>
+      <div class="field"><label>Ambient music (optional)</label>
+        ${dropZoneHtml('storeAmbientDrop', 'Drag a small audio loop here, or click to browse')}
+        <input id="storeAmbientUrl" placeholder="https://.../lobby-loop.mp3">
+      </div>
       <div class="field"><label><input type="checkbox" id="storeAmbientEnabled" style="width:auto;margin-right:6px;">Play while browsing the menu</label></div>
       <button class="btn" id="createStoreBtn">Create store</button>
     </div>
     <div id="storesTable">Loading…</div>
   `);
+
+  attachUploadZone('storeKbzDrop', 'storeKbzQr', 'storeKbzDrop-status', 'image/*');
+  attachUploadZone('storeAmbientDrop', 'storeAmbientUrl', 'storeAmbientDrop-status', 'audio/*');
 
   document.getElementById('createStoreBtn').addEventListener('click', async () => {
     const name = document.getElementById('storeName').value.trim();
@@ -248,12 +307,20 @@ function openStoreEditRow(storeId) {
   row.hidden = false;
   row.querySelector('td').innerHTML = `
     <div class="card" style="margin:8px 0;">
-      <div class="field"><label>KBZPay QR image URL</label><input id="editKbz-${storeId}" value="${escapeHtml(store.kbzpay_qr_url || '')}"></div>
-      <div class="field"><label>Ambient music URL</label><input id="editAmbient-${storeId}" value="${escapeHtml(store.ambient_audio_url || '')}"></div>
+      <div class="field"><label>KBZPay QR image</label>
+        ${dropZoneHtml(`editKbzDrop-${storeId}`, 'Drag the QR image here, or click to browse')}
+        <input id="editKbz-${storeId}" value="${escapeHtml(store.kbzpay_qr_url || '')}">
+      </div>
+      <div class="field"><label>Ambient music</label>
+        ${dropZoneHtml(`editAmbientDrop-${storeId}`, 'Drag a small audio loop here, or click to browse')}
+        <input id="editAmbient-${storeId}" value="${escapeHtml(store.ambient_audio_url || '')}">
+      </div>
       <div class="field"><label><input type="checkbox" id="editAmbientOn-${storeId}" style="width:auto;margin-right:6px;" ${store.ambient_audio_enabled ? 'checked' : ''}>Play while browsing the menu</label></div>
       <button class="btn" id="saveStoreEdit-${storeId}">Save</button>
     </div>
   `;
+  attachUploadZone(`editKbzDrop-${storeId}`, `editKbz-${storeId}`, `editKbzDrop-${storeId}-status`, 'image/*');
+  attachUploadZone(`editAmbientDrop-${storeId}`, `editAmbient-${storeId}`, `editAmbientDrop-${storeId}-status`, 'audio/*');
   document.getElementById(`saveStoreEdit-${storeId}`).addEventListener('click', async () => {
     await api(`/admin/stores/${storeId}`, {
       method: 'PATCH',
@@ -311,13 +378,18 @@ async function renderProducts() {
     <div class="card">
       <div class="field"><label>Name</label><input id="productName"></div>
       <div class="field"><label>Description</label><input id="productDescription" placeholder="Shown on the customer menu"></div>
-      <div class="field"><label>Image URL</label><input id="productImageUrl" placeholder="https://.../shan-noodles.jpg"></div>
+      <div class="field"><label>Image URL</label>
+        ${dropZoneHtml('productImageDrop', 'Drag an image here, or click to browse')}
+        <input id="productImageUrl" placeholder="https://.../shan-noodles.jpg">
+      </div>
       <div class="field"><label>Price (MMK)</label><input id="productPrice" type="number"></div>
       <div class="field"><label>Category</label><select id="productCategory"><option value="">— none —</option>${categoryOptions}</select></div>
       <button class="btn" id="createProductBtn">Add product</button>
     </div>
     <div id="productsTable">Loading…</div>
   `);
+
+  attachUploadZone('productImageDrop', 'productImageUrl', 'productImageDrop-status', 'image/*');
 
   document.getElementById('createProductBtn').addEventListener('click', async () => {
     const name = document.getElementById('productName').value.trim();

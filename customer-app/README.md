@@ -75,5 +75,10 @@ loading="lazy" so only visible rows fetch images as the customer
 scrolls, and a lightweight inline SVG placeholder (no network request)
 covers products without an image yet.
 
-Replace CLOUD_API_BASE in app.js with your deployed API origin before
-generating table QR codes.
+The cloud API URL is set via a real environment variable
+(`CLOUD_API_BASE`), not hardcoded in a committed file. A serverless
+function (`api/config.js`) reads it and serves it to the page. Set it
+in the Vercel project's Environment Variables — same place/pattern as
+`cloud-api`'s `DATABASE_URL` — and it takes effect on redeploy, no code
+edits needed. For local testing with `vercel dev`, copy `.env.example`
+to `.env` and it's picked up automatically.

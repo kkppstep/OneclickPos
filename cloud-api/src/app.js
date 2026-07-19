@@ -9,6 +9,7 @@ const adminHubsRouter = require('./routes/adminHubs');
 const staffRouter = require('./routes/staff');
 const orderActionsRouter = require('./routes/orderActions');
 const analyticsRouter = require('./routes/analytics');
+const uploadsRouter = require('./routes/uploads');
 const hubRegistrationRouter = require('./routes/hubRegistration');
 const publicMenuRouter = require('./routes/publicMenu');
 const publicOrdersRouter = require('./routes/publicOrders');
@@ -16,7 +17,10 @@ const orderPulldownRouter = require('./routes/orderPulldown');
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+// Raised from Express's 100kb default — base64-encoded images/audio
+// need headroom (base64 adds ~33% size), up to the 5MB file cap in
+// routes/uploads.js.
+app.use(express.json({ limit: '8mb' }));
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
@@ -40,6 +44,7 @@ app.use(adminHubsRouter);
 app.use(staffRouter);
 app.use(orderActionsRouter);
 app.use(analyticsRouter);
+app.use(uploadsRouter);
 
 // Everything past this point requires a valid hub API key.
 app.use(authenticateHub, ordersRouter);

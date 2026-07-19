@@ -24,19 +24,26 @@ separate, always-on deployment per store, not part of the web deploy.
 
 2. **`cloud-api`** — `vercel deploy` from inside `cloud-api/`. Set
    `DATABASE_URL`, `PLATFORM_API_KEY`, and `JWT_SECRET` as environment
-   variables in the Vercel project. Note the deployed URL.
+   variables in the Vercel project. Also enable **Blob storage**
+   (project's Storage tab → Create Database → Blob) so the
+   drag-and-drop image/audio uploads work — this auto-injects
+   `BLOB_READ_WRITE_TOKEN`, nothing to configure manually. Note the
+   deployed URL.
 
-3. **`admin-app`** — `vercel deploy` from inside `admin-app/` (or drag
-   the folder into the Vercel dashboard — it's static, no build step).
-   Open it, go to **Log in**, and use the "first time setting up a new
-   business?" section with your `PLATFORM_API_KEY` to create your first
-   tenant and owner login. From then on, log in normally — no platform
-   key needed again.
+3. **`admin-app`** — `vercel deploy` from inside `admin-app/`. In that
+   Vercel project's Environment Variables, set `CLOUD_API_BASE` to your
+   `cloud-api` URL from step 2 — a serverless function reads it and
+   pre-fills the Log in screen automatically (same mechanism as
+   `cloud-api`'s own env vars; change it and redeploy, no code edits).
+   Open the deployed page, go to **Log in**, and use the "first time
+   setting up a new business?" section with your `PLATFORM_API_KEY` to
+   create your first tenant and owner login. From then on, log in
+   normally — no platform key needed again.
 
-4. **`customer-app`** — before deploying, set `CLOUD_API_BASE` at the
-   top of `customer-app/app.js` to your `cloud-api` URL. Then
-   `vercel deploy` from inside `customer-app/`. Note this URL — you'll
-   enter it into `admin-app`'s Connection tab to generate table QR codes.
+4. **`customer-app`** — `vercel deploy` from inside `customer-app/`,
+   then set `CLOUD_API_BASE` the same way in that project's Environment
+   Variables. Note this URL — you'll enter it into `admin-app`'s
+   **Table QR codes** tab the first time you generate one.
 
 5. **`local-hub`** — for each physical store: copy this folder onto a
    small PC or Raspberry Pi on the store's network, `cp .env.example .env`
