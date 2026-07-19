@@ -58,12 +58,13 @@ restricting to your actual deployed domains before going live.
   kitchen/staff working view.
 - `POST /admin/uploads` — owner/manager. Accepts a base64-encoded file
   (image or small audio loop, 5MB cap) and returns a public URL via
-  Vercel Blob storage. Backs the drag-and-drop upload zones in
+  Supabase Storage. Backs the drag-and-drop upload zones in
   `admin-app` for product images, the KBZPay QR, and ambient audio —
   no more hand-hosting files elsewhere and pasting URLs.
-  **Requires Blob storage enabled on the Vercel project** (Storage tab
-  → Create Database → Blob), which auto-injects
-  `BLOB_READ_WRITE_TOKEN`. Without that step this endpoint returns 500s.
+  **Requires a Storage bucket named `uploads` in your Supabase project,
+  set to Public** (Supabase dashboard → Storage → New bucket), plus
+  `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` set as environment
+  variables. Without these this endpoint returns 500s.
 - `POST /admin/orders/:id/confirm-payment` — owner/manager only. Marks
   pending payments confirmed via staff override, writes to `audit_log`.
 - `POST /admin/orders/:id/status` — any assigned role can move an order
@@ -98,7 +99,8 @@ vercel deploy
 `vercel.json` routes every request through `api/index.js`, which
 re-exports the same Express app used for local dev (`src/app.js`) — no
 duplicate route definitions to maintain. Set `DATABASE_URL`,
-`PLATFORM_API_KEY`, and `JWT_SECRET` as Vercel environment variables.
+`PLATFORM_API_KEY`, `JWT_SECRET`, `SUPABASE_URL`, and
+`SUPABASE_SERVICE_ROLE_KEY` as Vercel environment variables.
 Use a connection pooler (e.g. Supabase or Neon's pgbouncer endpoint) for
 `DATABASE_URL` in production — see the comment in `src/db.js`.
 
