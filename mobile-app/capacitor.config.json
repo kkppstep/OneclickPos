@@ -1,0 +1,11 @@
+{
+  "appId": "com.yourpos.customer",
+  "appName": "Order",
+  "webDir": "../customer-app",
+  "server": {
+    "androidScheme": "https"
+  },
+  "ios": {
+    "contentInset": "automatic"
+  }
+}

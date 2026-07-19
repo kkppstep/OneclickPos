@@ -21,8 +21,13 @@ devices, and table QR codes -- and viewing recent orders.
    physical hub device (see `local-hub/README.md`).
 5. **Table QR codes** generates a scannable QR per table, pointing at
    the customer ordering app with that store and table baked in.
-6. Add other staff (manager/cashier/kitchen_staff roles) -- not yet
-   exposed in this UI; see cloud-api's README for the gap.
+6. **Staff** — add manager/cashier/kitchen_staff logins for this store
+   (owner-only). You set their initial password directly; there's no
+   invite-link flow yet, so share it with them out of band.
+7. **Live orders** — the working view for staff during service: open
+   orders with items and any special-request notes, a "Confirm payment"
+   button for pending KBZPay orders, and "Mark completed." Polls every
+   5 seconds. **Order history** is the separate read-only past-orders list.
 
 ## Auth
 

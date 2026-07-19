@@ -8,6 +8,7 @@ Four pieces, three deployment targets:
 | `cloud-api/` | Order intake, catalog, admin API | **Vercel** (serverless) |
 | `customer-app/` | QR-scan ordering page (menu, cart, checkout) | **Vercel** (static) |
 | `admin-app/` | Owner/admin dashboard | **Vercel** (static) |
+| `mobile-app/` | Capacitor iOS wrapper around `customer-app` | Xcode / App Store (optional, secondary channel — see its README) |
 | `local-hub/` | Store-side service — prints receipts, drives the cash drawer, keeps the store working through internet outages | **NOT Vercel** — runs on a small PC or Raspberry Pi physically inside each store |
 
 `local-hub` can't be serverless: it needs a persistent local database

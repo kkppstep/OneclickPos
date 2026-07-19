@@ -42,6 +42,18 @@ ordering page. Run against a Postgres database created from
 - `POST /admin/stores/:storeId/provisioning-codes` — user-authenticated,
   requires `owner`/`manager` at that store. Issues a short-lived,
   single-use code for setting up a new hub device.
+- `/admin/stores/:storeId/staff` (POST/GET/DELETE) — owner-only for
+  adding/removing, owner or manager for viewing. Creates a login for a
+  manager/cashier/kitchen_staff at that store, or reuses an existing
+  user in the same tenant (e.g. staff working two branches).
+- `GET /admin/stores/:storeId/live-orders` — any assigned role. Open
+  orders only, with items/notes/payment status included — backs the
+  kitchen/staff working view.
+- `POST /admin/orders/:id/confirm-payment` — owner/manager only. Marks
+  pending payments confirmed via staff override, writes to `audit_log`.
+- `POST /admin/orders/:id/status` — any assigned role can move an order
+  to `completed`; only owner/manager can `void`/`refund`. Writes to
+  `audit_log`.
 - `POST /hubs/register` — public, gated by a valid provisioning code
   instead of a hub API key (the device doesn't have one yet). Returns
   `hub_id` + `api_key` in plaintext exactly once — only the key's hash
@@ -71,13 +83,13 @@ Use a connection pooler (e.g. Supabase or Neon's pgbouncer endpoint) for
 
 ## Not yet implemented (next steps)
 
-- Password reset / invite flow for adding staff (right now, creating a
-  `users` row for anyone other than a tenant's first owner has no UI —
-  it'd need to be inserted directly, or a `POST /admin/users` endpoint
-  added).
+- Password reset / self-service invite flow — an owner sets a staff
+  member's initial password directly right now rather than sending an
+  invite link.
 - Rate limiting on the two public endpoints.
-- Order edits/voids/refunds and the audit-log writes described in
-  `schema.sql`'s `audit_log` table — currently nothing writes to it.
+- Order edits and refund handling beyond a plain status change to
+  `refunded` — no partial refunds or line-item edits yet.
 - Payment webhook support — deliberately skipped for now, since
   KBZPay/WavePay/CBPay don't offer reliable webhook confirmation for
-  small merchants in Myanmar. The `staff_override` path is primary.
+  small merchants in Myanmar. The `staff_override` path (now with a
+  real UI button in admin-app) is primary.

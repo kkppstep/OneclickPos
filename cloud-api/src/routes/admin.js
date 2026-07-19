@@ -149,7 +149,8 @@ router.patch('/admin/products/:id', authenticateUser, requireTenantRole(['owner'
   res.json(rows[0]);
 });
 
-// ---------- Orders (read-only) ----------
+// ---------- Orders ----------
+// Plain list (history) -- used by the Orders tab.
 router.get('/admin/orders', authenticateUser, requireStoreRole(['owner', 'manager']), async (req, res) => {
   const { rows } = await db.query(
     `SELECT id, table_number, channel, status, total, sync_status, created_at
@@ -157,6 +158,32 @@ router.get('/admin/orders', authenticateUser, requireStoreRole(['owner', 'manage
     [req.query.store_id]
   );
   res.json({ orders: rows });
+});
+
+// Live view -- open orders only, with items/notes/payment status
+// included, for the kitchen/staff order screen. Any assigned role can
+// view (not just owner/manager), since kitchen staff need this too.
+router.get('/admin/stores/:storeId/live-orders', authenticateUser, requireStoreRole(['owner', 'manager', 'cashier', 'kitchen_staff']), async (req, res) => {
+  const ordersRes = await db.query(
+    `SELECT id, table_number, channel, status, total, created_at
+     FROM orders WHERE store_id = $1 AND status = 'open' ORDER BY created_at ASC`,
+    [req.params.storeId]
+  );
+
+  const orders = [];
+  for (const order of ordersRes.rows) {
+    const itemsRes = await db.query(
+      'SELECT product_name_snapshot, qty, notes FROM order_items WHERE order_id = $1',
+      [order.id]
+    );
+    const paymentsRes = await db.query(
+      'SELECT method, status FROM payments WHERE order_id = $1',
+      [order.id]
+    );
+    orders.push({ ...order, items: itemsRes.rows, payments: paymentsRes.rows });
+  }
+
+  res.json({ orders });
 });
 
 module.exports = router;

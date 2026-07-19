@@ -61,11 +61,16 @@ const TABS = {
   products: renderProducts,
   provisioning: renderProvisioning,
   qrcodes: renderQrCodes,
+  staff: renderStaff,
+  liveOrders: renderLiveOrders,
   orders: renderOrders,
 };
 
+let liveOrdersInterval = null;
+
 function switchTab(tab) {
   if (tab !== 'login' && !state.token) tab = 'login';
+  if (liveOrdersInterval) { clearInterval(liveOrdersInterval); liveOrdersInterval = null; }
   document.querySelectorAll('.nav-item').forEach((el) => el.classList.toggle('active', el.dataset.tab === tab));
   updateContextBar();
   TABS[tab]();
@@ -93,6 +98,7 @@ function renderLogin() {
   setContent(`
     <h1>Log in</h1>
     <div class="subtitle">Enter your deployed cloud API URL, then log in.</div>
+    <div class="login-grid">
     <div class="card">
       <div class="field"><label>Cloud API URL</label><input id="apiBaseInput" value="${escapeHtml(state.apiBase)}" placeholder="https://your-api.vercel.app"></div>
       <div class="field"><label>Email</label><input id="loginEmail"></div>
@@ -111,6 +117,7 @@ function renderLogin() {
       <div class="field"><label>Owner password</label><input id="ownerPassword" type="password"></div>
       <button class="btn secondary" id="bootstrapBtn">Create business</button>
       <div id="bootstrapResult" style="margin-top:12px;"></div>
+    </div>
     </div>
   `);
 
@@ -211,7 +218,7 @@ async function renderStores() {
     <tr>
       <td>${escapeHtml(s.name)}</td>
       <td>${escapeHtml(s.region_state || '')}</td>
-      <td>${escapeHtml(s.my_role || '')}</td>
+      <td><span class="pill">${escapeHtml(s.my_role || '')}</span></td>
       <td><button class="btn secondary select-store" data-id="${s.id}">${s.id === state.storeId ? 'Selected' : 'Select'}</button></td>
     </tr>
   `).join('');
@@ -371,15 +378,182 @@ function renderQrCodes() {
     const table = document.getElementById('tableNumber').value.trim();
     if (!table) return;
     const url = `${state.customerAppUrl}/?store=${state.storeId}&table=${encodeURIComponent(table)}`;
-    document.getElementById('qrBox').innerHTML = `<div id="qrCanvas"></div><div class="link-text">${escapeHtml(url)}</div>`;
+    const qrBox = document.getElementById('qrBox');
+    qrBox.innerHTML = `
+      <div id="qrCanvas"></div>
+      <div class="link-text">${escapeHtml(url)}</div>
+      <div class="qr-actions">
+        <button class="btn secondary" id="downloadQrBtn">Download PNG</button>
+        <button class="btn secondary" id="printQrBtn">Print</button>
+      </div>
+    `;
     // eslint-disable-next-line no-undef
     new QRCode(document.getElementById('qrCanvas'), { text: url, width: 220, height: 220 });
+
+    document.getElementById('downloadQrBtn').addEventListener('click', () => {
+      const canvas = qrBox.querySelector('canvas');
+      if (!canvas) return;
+      const link = document.createElement('a');
+      link.download = `table-${table}-qr.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    });
+
+    document.getElementById('printQrBtn').addEventListener('click', () => {
+      const canvas = qrBox.querySelector('canvas');
+      if (!canvas) return;
+      const dataUrl = canvas.toDataURL('image/png');
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(`
+        <html><head><title>Table ${escapeHtml(table)} QR</title></head>
+        <body style="text-align:center;font-family:sans-serif;padding:40px;">
+          <h2>Table ${escapeHtml(table)}</h2>
+          <img src="${dataUrl}" style="width:280px;height:280px;">
+          <p style="color:#666;font-size:12px;">Scan to order</p>
+        </body></html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+    });
   });
 }
 
 // ============================================================
-// Orders
+// Staff
 // ============================================================
+async function renderStaff() {
+  if (!state.storeId) { setContent(`<h1>Staff</h1><div class="state-message">Select a store first.</div>`); return; }
+  setContent(`
+    <h1>Staff</h1>
+    <div class="subtitle">Owner-only. Adds a login scoped to this store.</div>
+    <div class="card">
+      <div class="field"><label>Name</label><input id="staffName"></div>
+      <div class="field"><label>Email</label><input id="staffEmail"></div>
+      <div class="field"><label>Initial password</label><input id="staffPassword" type="password"></div>
+      <div class="field"><label>Role</label>
+        <select id="staffRole">
+          <option value="manager">Manager</option>
+          <option value="cashier">Cashier</option>
+          <option value="kitchen_staff">Kitchen staff</option>
+        </select>
+      </div>
+      <button class="btn" id="addStaffBtn">Add</button>
+      <div id="staffResult" style="margin-top:10px;"></div>
+    </div>
+    <div id="staffTable">Loading…</div>
+  `);
+
+  document.getElementById('addStaffBtn').addEventListener('click', async () => {
+    const resultEl = document.getElementById('staffResult');
+    try {
+      await api(`/admin/stores/${state.storeId}/staff`, {
+        method: 'POST',
+        body: {
+          name: document.getElementById('staffName').value.trim(),
+          email: document.getElementById('staffEmail').value.trim(),
+          password: document.getElementById('staffPassword').value,
+          role: document.getElementById('staffRole').value,
+        },
+      });
+      resultEl.innerHTML = `<span style="color:#2C5A28">Added. Share the email/password with them directly.</span>`;
+      renderStaffTable();
+    } catch (err) {
+      resultEl.innerHTML = `<span style="color:#A6301F">${escapeHtml(err.message)}</span>`;
+    }
+  });
+
+  renderStaffTable();
+}
+
+async function renderStaffTable() {
+  const data = await api(`/admin/stores/${state.storeId}/staff`);
+  const rows = data.staff.map((s) => `
+    <tr>
+      <td>${escapeHtml(s.name)}</td>
+      <td>${escapeHtml(s.email)}</td>
+      <td><span class="pill">${escapeHtml(s.role)}</span></td>
+      <td>${s.role !== 'owner' ? `<button class="btn secondary remove-staff" data-id="${s.id}">Remove</button>` : ''}</td>
+    </tr>
+  `).join('');
+  document.getElementById('staffTable').innerHTML = `
+    <table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+  `;
+  document.querySelectorAll('.remove-staff').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      await api(`/admin/stores/${state.storeId}/staff/${btn.dataset.id}`, { method: 'DELETE' });
+      renderStaffTable();
+    });
+  });
+}
+
+// ============================================================
+// Live orders — the kitchen/staff working view. Polls every 5s.
+// ============================================================
+async function renderLiveOrders() {
+  if (!state.storeId) { setContent(`<h1>Live orders</h1><div class="state-message">Select a store first.</div>`); return; }
+  setContent(`<h1>Live orders</h1><div class="subtitle">Refreshes automatically.</div><div id="liveOrdersList">Loading…</div>`);
+
+  const load = async () => {
+    try {
+      const data = await api(`/admin/stores/${state.storeId}/live-orders`);
+      renderLiveOrdersList(data.orders);
+    } catch (err) {
+      document.getElementById('liveOrdersList').innerHTML = `<div class="state-message error">${escapeHtml(err.message)}</div>`;
+    }
+  };
+
+  await load();
+  liveOrdersInterval = setInterval(load, 5000);
+}
+
+function renderLiveOrdersList(orders) {
+  const listEl = document.getElementById('liveOrdersList');
+  if (orders.length === 0) {
+    listEl.innerHTML = `<div class="state-message">No open orders right now.</div>`;
+    return;
+  }
+
+  listEl.innerHTML = orders.map((o) => {
+    const pendingPayment = o.payments.some((p) => p.status === 'pending');
+    const itemsHtml = o.items.map((i) => `
+      <div style="padding:4px 0;font-size:0.88rem;">
+        ${i.qty} × ${escapeHtml(i.product_name_snapshot)}
+        ${i.notes ? `<div style="font-size:0.78rem;color:var(--text-muted);font-style:italic;">note: ${escapeHtml(i.notes)}</div>` : ''}
+      </div>
+    `).join('');
+
+    return `
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:start;">
+          <div>
+            <div style="font-weight:700;">${o.table_number ? `Table ${escapeHtml(o.table_number)}` : escapeHtml(o.channel)}</div>
+            <div style="font-size:0.78rem;color:var(--text-muted);">${new Date(o.created_at).toLocaleTimeString()}</div>
+          </div>
+          ${pendingPayment ? `<span class="pill pending">Payment pending</span>` : `<span class="pill synced">Paid</span>`}
+        </div>
+        <div style="margin:10px 0;">${itemsHtml}</div>
+        <div style="display:flex;gap:8px;">
+          ${pendingPayment ? `<button class="btn secondary confirm-payment-btn" data-id="${o.id}">Confirm payment</button>` : ''}
+          <button class="btn complete-order-btn" data-id="${o.id}">Mark completed</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  listEl.querySelectorAll('.confirm-payment-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      await api(`/admin/orders/${btn.dataset.id}/confirm-payment`, { method: 'POST' });
+    });
+  });
+  listEl.querySelectorAll('.complete-order-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      await api(`/admin/orders/${btn.dataset.id}/status`, { method: 'POST', body: { status: 'completed' } });
+    });
+  });
+}
+
+
 async function renderOrders() {
   if (!state.storeId) { setContent(`<h1>Orders</h1><div class="state-message">Select a store first.</div>`); return; }
   setContent(`<h1>Orders</h1><div class="subtitle">Most recent 50 for this store.</div><div id="ordersTable">Loading…</div>`);
