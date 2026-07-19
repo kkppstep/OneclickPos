@@ -106,20 +106,25 @@ function renderMenu() {
   `).join('');
 
   menuEl.querySelectorAll('.product-card').forEach((card) => {
-    card.addEventListener('click', () => openProductModal(card.dataset.productId));
+    card.addEventListener('click', () => {
+      if (card.classList.contains('sold-out')) return;
+      openProductModal(card.dataset.productId);
+    });
   });
 }
 
 function productCardHtml(product) {
+  const soldOut = product.is_available === false;
   return `
-    <div class="card product-card" data-product-id="${product.id}">
+    <div class="card product-card${soldOut ? ' sold-out' : ''}" data-product-id="${product.id}">
       <img src="${product.image_url || PLACEHOLDER_IMAGE}" alt="${escapeHtml(product.name)}" loading="lazy">
+      ${soldOut ? '<div class="sold-out-badge">Sold out</div>' : ''}
       <div class="card-body">
         <div class="card-title">${escapeHtml(product.name)}</div>
         ${product.description ? `<div class="card-text">${escapeHtml(product.description)}</div>` : ''}
         <div class="price-row">
           <span class="price">${formatMoney(product.price)}</span>
-          <button class="add-btn" aria-label="Add ${escapeHtml(product.name)}">+</button>
+          ${soldOut ? '' : `<button class="add-btn" aria-label="Add ${escapeHtml(product.name)}">+</button>`}
         </div>
       </div>
     </div>

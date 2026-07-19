@@ -5,6 +5,11 @@ sync configuration, and backs the admin dashboard and customer
 ordering page. Run against a Postgres database created from
 `schema.sql` (in the project root, alongside `local-hub/`).
 
+CORS is open (`cors()` with defaults) since `customer-app` and
+`admin-app` are static sites on different domains than this API —
+without it, every browser call from them would be blocked. Worth
+restricting to your actual deployed domains before going live.
+
 ## Auth — three separate schemes, deliberately not shared
 
 - **Hub auth** — every hub carries a bearer API key issued at
@@ -56,6 +61,12 @@ ordering page. Run against a Postgres database created from
 - `POST /admin/orders/:id/status` — any assigned role can move an order
   to `completed`; only owner/manager can `void`/`refund`. Writes to
   `audit_log`.
+- `PATCH /admin/stores/:storeId/products/:productId/availability` —
+  owner/manager. Manual sold-out toggle, per store (a product can be
+  out at one branch and available at another) — not stock-counted.
+- `GET /admin/stores/:storeId/analytics?days=7|30|90` — owner/manager.
+  Daily revenue, order count/average, and top 10 best sellers by
+  quantity, excluding voided/refunded orders.
 - `POST /hubs/register` — public, gated by a valid provisioning code
   instead of a hub API key (the device doesn't have one yet). Returns
   `hub_id` + `api_key` in plaintext exactly once — only the key's hash

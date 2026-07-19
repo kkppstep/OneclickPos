@@ -1,4 +1,5 @@
 const express = require('express');
+const cors = require('cors');
 const { authenticateHub } = require('./middleware/auth');
 const authRouter = require('./routes/auth');
 const ordersRouter = require('./routes/orders');
@@ -7,12 +8,14 @@ const adminRouter = require('./routes/admin');
 const adminHubsRouter = require('./routes/adminHubs');
 const staffRouter = require('./routes/staff');
 const orderActionsRouter = require('./routes/orderActions');
+const analyticsRouter = require('./routes/analytics');
 const hubRegistrationRouter = require('./routes/hubRegistration');
 const publicMenuRouter = require('./routes/publicMenu');
 const publicOrdersRouter = require('./routes/publicOrders');
 const orderPulldownRouter = require('./routes/orderPulldown');
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
@@ -36,6 +39,7 @@ app.use(adminRouter);
 app.use(adminHubsRouter);
 app.use(staffRouter);
 app.use(orderActionsRouter);
+app.use(analyticsRouter);
 
 // Everything past this point requires a valid hub API key.
 app.use(authenticateHub, ordersRouter);

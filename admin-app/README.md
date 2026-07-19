@@ -16,7 +16,9 @@ devices, and table QR codes -- and viewing recent orders.
 ## Day-to-day use
 
 3. Create a store (you become its `owner` automatically), then
-   categories and products.
+   categories and products. With a store selected, the Products tab
+   also shows a "Mark sold out"/"Mark available" toggle per item —
+   manual, per store, not stock-counted.
 4. **Hub setup** generates a one-time provisioning code for each
    physical hub device (see `local-hub/README.md`).
 5. **Table QR codes** generates a scannable QR per table, pointing at
@@ -28,6 +30,8 @@ devices, and table QR codes -- and viewing recent orders.
    orders with items and any special-request notes, a "Confirm payment"
    button for pending KBZPay orders, and "Mark completed." Polls every
    5 seconds. **Order history** is the separate read-only past-orders list.
+8. **Analytics** — daily revenue chart, order count/average, and top
+   10 best sellers by quantity, over 7/30/90-day ranges.
 
 ## Auth
 

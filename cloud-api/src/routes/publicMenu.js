@@ -35,14 +35,19 @@ router.get('/public/stores/:storeId/menu', async (req, res) => {
   // Products/categories are tenant-scoped (shared across a tenant's
   // stores), not store-scoped — see schema.sql. is_active filters out
   // discontinued items without deleting order history that references them.
+  // LEFT JOIN inventory scoped to THIS store — a product can be sold
+  // out at one branch and still available at another. A missing
+  // inventory row means available (COALESCE default).
   const rowsRes = await db.query(
     `SELECT c.id AS category_id, c.name AS category_name, c.sort_order,
-            p.id AS product_id, p.name AS product_name, p.description, p.image_url, p.price
+            p.id AS product_id, p.name AS product_name, p.description, p.image_url, p.price,
+            COALESCE(i.is_available, true) AS is_available
      FROM categories c
      JOIN products p ON p.category_id = c.id AND p.tenant_id = c.tenant_id
+     LEFT JOIN inventory i ON i.product_id = p.id AND i.store_id = $2
      WHERE c.tenant_id = $1 AND p.is_active = true
      ORDER BY c.sort_order ASC, c.name ASC, p.name ASC`,
-    [store.tenant_id]
+    [store.tenant_id, storeId]
   );
 
   const categoriesById = new Map();
@@ -60,6 +65,7 @@ router.get('/public/stores/:storeId/menu', async (req, res) => {
       description: row.description,
       image_url: row.image_url,
       price: Number(row.price),
+      is_available: row.is_available,
     });
   }
 

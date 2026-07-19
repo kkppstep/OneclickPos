@@ -64,6 +64,7 @@ const TABS = {
   staff: renderStaff,
   liveOrders: renderLiveOrders,
   orders: renderOrders,
+  analytics: renderAnalytics,
 };
 
 let liveOrdersInterval = null;
@@ -335,18 +336,34 @@ async function renderProducts() {
     renderProducts();
   });
 
-  const data = await api('/admin/products');
+  const data = await api(`/admin/products${state.storeId ? `?store_id=${state.storeId}` : ''}`);
   state.products = data.products;
   const rows = state.products.map((p) => `
     <tr>
       <td>${escapeHtml(p.name)}</td>
       <td>${Number(p.price).toLocaleString()} MMK</td>
       <td><span class="pill ${p.is_active ? 'synced' : ''}">${p.is_active ? 'Active' : 'Inactive'}</span></td>
+      <td>${
+        state.storeId
+          ? `<button class="btn secondary toggle-availability" data-id="${p.id}" data-available="${p.is_available}">${p.is_available ? 'Mark sold out' : 'Mark available'}</button>`
+          : `<span style="font-size:0.78rem;color:var(--text-muted)">Select a store to manage</span>`
+      }</td>
     </tr>
   `).join('');
   document.getElementById('productsTable').innerHTML = `
-    <table><thead><tr><th>Name</th><th>Price</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>
+    <table><thead><tr><th>Name</th><th>Price</th><th>Status</th><th>Availability</th></tr></thead><tbody>${rows}</tbody></table>
   `;
+
+  document.querySelectorAll('.toggle-availability').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const nextAvailable = btn.dataset.available !== 'true';
+      await api(`/admin/stores/${state.storeId}/products/${btn.dataset.id}/availability`, {
+        method: 'PATCH',
+        body: { is_available: nextAvailable },
+      });
+      renderProducts();
+    });
+  });
 }
 
 // ============================================================
@@ -587,6 +604,91 @@ function renderLiveOrdersList(orders) {
       await api(`/admin/orders/${btn.dataset.id}/status`, { method: 'POST', body: { status: 'completed' } });
     });
   });
+}
+
+
+// ============================================================
+// Analytics — daily revenue and best sellers
+// ============================================================
+async function renderAnalytics(days = 7) {
+  if (!state.storeId) { setContent(`<h1>Analytics</h1><div class="state-message">Select a store first.</div>`); return; }
+
+  setContent(`
+    <h1>Analytics</h1>
+    <div class="subtitle">Excludes voided/refunded orders.</div>
+    <div style="display:flex;gap:8px;margin-bottom:20px;">
+      <button class="btn ${days === 7 ? '' : 'secondary'}" id="range7">7 days</button>
+      <button class="btn ${days === 30 ? '' : 'secondary'}" id="range30">30 days</button>
+      <button class="btn ${days === 90 ? '' : 'secondary'}" id="range90">90 days</button>
+    </div>
+    <div id="analyticsContent">Loading…</div>
+  `);
+
+  document.getElementById('range7').addEventListener('click', () => renderAnalytics(7));
+  document.getElementById('range30').addEventListener('click', () => renderAnalytics(30));
+  document.getElementById('range90').addEventListener('click', () => renderAnalytics(90));
+
+  try {
+    const data = await api(`/admin/stores/${state.storeId}/analytics?days=${days}`);
+    const el = document.getElementById('analyticsContent');
+
+    const maxRevenue = Math.max(1, ...data.daily_revenue.map((d) => Number(d.revenue)));
+    const barsHtml = data.daily_revenue.map((d) => {
+      const heightPct = Math.max(4, (Number(d.revenue) / maxRevenue) * 100);
+      const label = new Date(d.day).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      return `
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0;">
+          <div style="font-size:0.68rem;color:var(--text-muted);white-space:nowrap;">${Number(d.revenue).toLocaleString()}</div>
+          <div style="width:100%;height:120px;display:flex;align-items:flex-end;">
+            <div style="width:100%;height:${heightPct}%;background:var(--red);border-radius:4px 4px 0 0;"></div>
+          </div>
+          <div style="font-size:0.68rem;color:var(--text-muted);">${label}</div>
+        </div>
+      `;
+    }).join('');
+
+    const bestSellersRows = data.best_sellers.map((b, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${escapeHtml(b.name)}</td>
+        <td>${b.qty_sold}</td>
+        <td>${Number(b.revenue).toLocaleString()} MMK</td>
+      </tr>
+    `).join('');
+
+    el.innerHTML = `
+      <div style="display:flex;gap:14px;margin-bottom:20px;flex-wrap:wrap;">
+        <div class="card" style="flex:1;min-width:150px;">
+          <div style="font-size:0.78rem;color:var(--text-muted);">Total revenue</div>
+          <div style="font-size:1.4rem;font-weight:700;">${Number(data.summary.total_revenue).toLocaleString()} MMK</div>
+        </div>
+        <div class="card" style="flex:1;min-width:150px;">
+          <div style="font-size:0.78rem;color:var(--text-muted);">Orders</div>
+          <div style="font-size:1.4rem;font-weight:700;">${data.summary.total_orders}</div>
+        </div>
+        <div class="card" style="flex:1;min-width:150px;">
+          <div style="font-size:0.78rem;color:var(--text-muted);">Avg order value</div>
+          <div style="font-size:1.4rem;font-weight:700;">${Math.round(Number(data.summary.avg_order_value)).toLocaleString()} MMK</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:600;margin-bottom:14px;">Daily revenue</div>
+        ${data.daily_revenue.length === 0
+          ? `<div class="state-message">No orders in this range yet.</div>`
+          : `<div style="display:flex;gap:6px;align-items:flex-end;">${barsHtml}</div>`}
+      </div>
+
+      <div class="card">
+        <div style="font-weight:600;margin-bottom:10px;">Best sellers</div>
+        ${data.best_sellers.length === 0
+          ? `<div class="state-message">No sales in this range yet.</div>`
+          : `<table><thead><tr><th>#</th><th>Product</th><th>Qty sold</th><th>Revenue</th></tr></thead><tbody>${bestSellersRows}</tbody></table>`}
+      </div>
+    `;
+  } catch (err) {
+    document.getElementById('analyticsContent').innerHTML = `<div class="state-message error">${escapeHtml(err.message)}</div>`;
+  }
 }
 
 

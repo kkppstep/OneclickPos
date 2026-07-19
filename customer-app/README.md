@@ -44,6 +44,13 @@ which matters given the same connectivity constraints the rest of this
 app is built around. A multi-minute high-bitrate track defeats the
 "small MB" goal and will be slow to start on weak connections.
 
+## Availability
+
+Items an owner marks sold out (Products tab, per store) stay visible
+on the menu rather than disappearing — grayed out with a "Sold out"
+badge and no add button — so customers aren't left wondering where a
+usually-available item went.
+
 ## Dependencies
 
 - `product.image_url` and `product.description` -- added to `schema.sql`

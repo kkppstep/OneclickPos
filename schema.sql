@@ -166,8 +166,11 @@ CREATE TABLE inventory (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
-    stock_qty NUMERIC(12,2) NOT NULL DEFAULT 0,
-    low_stock_threshold NUMERIC(12,2) DEFAULT 0,
+    -- Manually set by the owner/manager, not stock-counted. A missing
+    -- row for a product+store means "available" by default (see the
+    -- COALESCE in publicMenu.js) — a row only needs to exist once
+    -- something is marked unavailable.
+    is_available BOOLEAN NOT NULL DEFAULT true,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (product_id, store_id)
 );

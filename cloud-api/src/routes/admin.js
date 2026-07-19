@@ -151,10 +151,43 @@ router.post('/admin/products', authenticateUser, requireTenantRole(['owner', 'ma
   res.status(201).json(rows[0]);
 });
 
+// Plain tenant-wide list. Pass ?store_id= to also get each product's
+// availability at that specific store (a product can be marked out of
+// stock at one branch and still available at another).
 router.get('/admin/products', authenticateUser, async (req, res) => {
-  const { rows } = await db.query('SELECT * FROM products WHERE tenant_id = $1 ORDER BY name', [req.user.tenant_id]);
+  const { store_id } = req.query;
+  const { rows } = store_id
+    ? await db.query(
+        `SELECT p.*, COALESCE(i.is_available, true) AS is_available
+         FROM products p
+         LEFT JOIN inventory i ON i.product_id = p.id AND i.store_id = $2
+         WHERE p.tenant_id = $1 ORDER BY p.name`,
+        [req.user.tenant_id, store_id]
+      )
+    : await db.query('SELECT * FROM products WHERE tenant_id = $1 ORDER BY name', [req.user.tenant_id]);
   res.json({ products: rows });
 });
+
+// PATCH /admin/stores/:storeId/products/:productId/availability —
+// owner/manager. Upserts into inventory since a row may not exist yet
+// (missing row means "available" by default).
+router.patch(
+  '/admin/stores/:storeId/products/:productId/availability',
+  authenticateUser,
+  requireStoreRole(['owner', 'manager']),
+  async (req, res) => {
+    const { is_available } = req.body;
+    if (typeof is_available !== 'boolean') return res.status(400).json({ error: 'is_available_boolean_required' });
+
+    await db.query(
+      `INSERT INTO inventory (id, product_id, store_id, is_available, updated_at)
+       VALUES (gen_random_uuid(), $1, $2, $3, now())
+       ON CONFLICT (product_id, store_id) DO UPDATE SET is_available = excluded.is_available, updated_at = now()`,
+      [req.params.productId, req.params.storeId, is_available]
+    );
+    res.json({ product_id: req.params.productId, store_id: req.params.storeId, is_available });
+  }
+);
 
 router.patch('/admin/products/:id', authenticateUser, requireTenantRole(['owner', 'manager']), async (req, res) => {
   const { name, price, is_active, category_id } = req.body;
