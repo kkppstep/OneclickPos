@@ -106,7 +106,7 @@ function fileToBase64(file) {
   });
 }
 
-function attachUploadZone(zoneId, inputId, statusId, accept) {
+function attachUploadZone(zoneId, inputId, statusId) {
   const zone = document.getElementById(zoneId);
   const input = document.getElementById(inputId);
   const status = document.getElementById(statusId);
@@ -129,7 +129,6 @@ function attachUploadZone(zoneId, inputId, statusId, accept) {
   zone.addEventListener('click', () => {
     const picker = document.createElement('input');
     picker.type = 'file';
-    if (accept) picker.accept = accept;
     picker.onchange = () => handleFile(picker.files[0]);
     picker.click();
   });
@@ -256,8 +255,8 @@ async function renderStores() {
     <div id="storesTable">Loading…</div>
   `);
 
-  attachUploadZone('storeKbzDrop', 'storeKbzQr', 'storeKbzDrop-status', 'image/*');
-  attachUploadZone('storeAmbientDrop', 'storeAmbientUrl', 'storeAmbientDrop-status', 'audio/*');
+  attachUploadZone('storeKbzDrop', 'storeKbzQr', 'storeKbzDrop-status');
+  attachUploadZone('storeAmbientDrop', 'storeAmbientUrl', 'storeAmbientDrop-status');
 
   document.getElementById('createStoreBtn').addEventListener('click', async () => {
     const name = document.getElementById('storeName').value.trim();
@@ -319,8 +318,8 @@ function openStoreEditRow(storeId) {
       <button class="btn" id="saveStoreEdit-${storeId}">Save</button>
     </div>
   `;
-  attachUploadZone(`editKbzDrop-${storeId}`, `editKbz-${storeId}`, `editKbzDrop-${storeId}-status`, 'image/*');
-  attachUploadZone(`editAmbientDrop-${storeId}`, `editAmbient-${storeId}`, `editAmbientDrop-${storeId}-status`, 'audio/*');
+  attachUploadZone(`editKbzDrop-${storeId}`, `editKbz-${storeId}`, `editKbzDrop-${storeId}-status`);
+  attachUploadZone(`editAmbientDrop-${storeId}`, `editAmbient-${storeId}`, `editAmbientDrop-${storeId}-status`);
   document.getElementById(`saveStoreEdit-${storeId}`).addEventListener('click', async () => {
     await api(`/admin/stores/${storeId}`, {
       method: 'PATCH',
@@ -389,7 +388,7 @@ async function renderProducts() {
     <div id="productsTable">Loading…</div>
   `);
 
-  attachUploadZone('productImageDrop', 'productImageUrl', 'productImageDrop-status', 'image/*');
+  attachUploadZone('productImageDrop', 'productImageUrl', 'productImageDrop-status');
 
   document.getElementById('createProductBtn').addEventListener('click', async () => {
     const name = document.getElementById('productName').value.trim();
