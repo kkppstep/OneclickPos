@@ -26,6 +26,24 @@ https://order.yourpos.com/?store=<store_id>&table=<table_number>
   running item count and total. Tapping it opens the cart, then payment
   (cash or KBZPay QR), then a confirmation screen.
 
+## Ambient music
+
+Set by the owner in the admin dashboard (Stores → Edit settings) as a
+URL to a small hosted audio file — there's no upload/hosting built
+here, just a link, same pattern as the KBZPay QR image. Only plays if
+the store has it enabled (`ambient_audio_enabled`).
+
+Browsers block autoplay-with-sound until the user has interacted with
+the page, so it starts on the customer's first tap rather than on
+load, at a quiet default volume (35%), looping. A small toggle button
+lets them mute it; that choice is remembered for the browsing session.
+
+**Keep the file small**: since it loops, a short clip works fine —
+15–30 seconds at 96–128kbps MP3/OGG typically lands well under 500KB,
+which matters given the same connectivity constraints the rest of this
+app is built around. A multi-minute high-bitrate track defeats the
+"small MB" goal and will be slow to start on weak connections.
+
 ## Dependencies
 
 - `product.image_url` and `product.description` -- added to `schema.sql`

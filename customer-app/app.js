@@ -62,10 +62,12 @@ async function loadMenu() {
     state.menu = data.categories || [];
     state.localHubUrl = data.local_hub_url || null;
     state.kbzpayQrUrl = data.kbzpay_qr_url || null;
+    state.ambientAudioUrl = data.ambient_audio_url || null;
     document.getElementById('loadingMessage').hidden = true;
     renderCategoryNav();
     renderMenu();
     observeSections();
+    setupAmbientAudio();
   } catch (err) {
     showMessage("Can't load the menu right now. Check you're connected to the wifi and try again.", true);
   }
@@ -404,6 +406,53 @@ async function submitOrder(paymentMethod) {
       return { ok: false };
     }
   }
+}
+
+// ============================================================
+// Ambient music — small looping track set by the store owner.
+// Autoplay-with-sound is blocked by phone browsers until the user has
+// interacted with the page, so this starts on the customer's first
+// tap anywhere rather than on load. A visible toggle lets them mute
+// it at any time; that preference is remembered for the session.
+// ============================================================
+function setupAmbientAudio() {
+  if (!state.ambientAudioUrl) return;
+
+  const audio = document.getElementById('ambientAudio');
+  const toggle = document.getElementById('ambientToggle');
+  audio.src = state.ambientAudioUrl;
+  audio.volume = 0.35;
+  toggle.hidden = false;
+
+  let userMuted = sessionStorage.getItem('ambientMuted') === 'true';
+  let started = false;
+
+  function updateToggleIcon() {
+    toggle.classList.toggle('muted', userMuted);
+  }
+  updateToggleIcon();
+
+  function tryStart() {
+    if (started || userMuted) return;
+    audio.play().then(() => { started = true; }).catch(() => {
+      // Still blocked (e.g. iOS requiring a direct tap on the audio
+      // element itself in rare cases) — next tap will retry.
+    });
+  }
+
+  document.addEventListener('click', tryStart, { once: false });
+
+  toggle.addEventListener('click', () => {
+    userMuted = !userMuted;
+    sessionStorage.setItem('ambientMuted', String(userMuted));
+    updateToggleIcon();
+    if (userMuted) {
+      audio.pause();
+    } else {
+      started = false;
+      tryStart();
+    }
+  });
 }
 
 // ============================================================

@@ -15,7 +15,7 @@ router.get('/public/stores/:storeId/menu', async (req, res) => {
   const { storeId } = req.params;
 
   const storeRes = await db.query(
-    'SELECT id, tenant_id, kbzpay_qr_url FROM stores WHERE id = $1',
+    'SELECT id, tenant_id, kbzpay_qr_url, ambient_audio_url, ambient_audio_enabled FROM stores WHERE id = $1',
     [storeId]
   );
   const store = storeRes.rows[0];
@@ -67,6 +67,7 @@ router.get('/public/stores/:storeId/menu', async (req, res) => {
     categories: Array.from(categoriesById.values()),
     local_hub_url: hubRes.rows[0]?.local_lan_url || null,
     kbzpay_qr_url: store.kbzpay_qr_url || null,
+    ambient_audio_url: store.ambient_audio_enabled ? store.ambient_audio_url : null,
   });
 });
 

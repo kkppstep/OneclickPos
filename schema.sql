@@ -50,6 +50,8 @@ CREATE TABLE stores (
     retry_count INT NOT NULL DEFAULT 2,
     retry_backoff_ms INT NOT NULL DEFAULT 1000,
     kbzpay_qr_url TEXT,   -- static KBZPay QR image shown at customer checkout; NULL = not offered
+    ambient_audio_url TEXT,          -- small looping audio file played while browsing the menu
+    ambient_audio_enabled BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

@@ -192,6 +192,8 @@ async function renderStores() {
       <div class="field"><label>Address</label><input id="storeAddress"></div>
       <div class="field"><label>Region / state</label><input id="storeRegion" placeholder="e.g. Yangon, Rakhine, Kachin"></div>
       <div class="field"><label>KBZPay QR image URL (optional)</label><input id="storeKbzQr" placeholder="https://.../kbzpay-qr.png"></div>
+      <div class="field"><label>Ambient music URL (optional)</label><input id="storeAmbientUrl" placeholder="https://.../lobby-loop.mp3"></div>
+      <div class="field"><label><input type="checkbox" id="storeAmbientEnabled" style="width:auto;margin-right:6px;">Play while browsing the menu</label></div>
       <button class="btn" id="createStoreBtn">Create store</button>
     </div>
     <div id="storesTable">Loading…</div>
@@ -207,6 +209,8 @@ async function renderStores() {
         address: document.getElementById('storeAddress').value.trim(),
         region_state: document.getElementById('storeRegion').value.trim(),
         kbzpay_qr_url: document.getElementById('storeKbzQr').value.trim() || null,
+        ambient_audio_url: document.getElementById('storeAmbientUrl').value.trim() || null,
+        ambient_audio_enabled: document.getElementById('storeAmbientEnabled').checked,
       },
     });
     renderStores();
@@ -219,14 +223,46 @@ async function renderStores() {
       <td>${escapeHtml(s.name)}</td>
       <td>${escapeHtml(s.region_state || '')}</td>
       <td><span class="pill">${escapeHtml(s.my_role || '')}</span></td>
-      <td><button class="btn secondary select-store" data-id="${s.id}">${s.id === state.storeId ? 'Selected' : 'Select'}</button></td>
+      <td>
+        <button class="btn secondary select-store" data-id="${s.id}">${s.id === state.storeId ? 'Selected' : 'Select'}</button>
+        <button class="btn secondary edit-store" data-id="${s.id}">Edit settings</button>
+      </td>
     </tr>
+    <tr class="edit-row" id="edit-row-${s.id}" hidden><td colspan="4"></td></tr>
   `).join('');
   document.getElementById('storesTable').innerHTML = `
     <table><thead><tr><th>Store</th><th>Region</th><th>Your role</th><th></th></tr></thead><tbody>${rows}</tbody></table>
   `;
   document.querySelectorAll('.select-store').forEach((btn) => {
     btn.addEventListener('click', () => { persist('storeId', btn.dataset.id); renderStores(); updateContextBar(); });
+  });
+  document.querySelectorAll('.edit-store').forEach((btn) => {
+    btn.addEventListener('click', () => openStoreEditRow(btn.dataset.id));
+  });
+}
+
+function openStoreEditRow(storeId) {
+  const store = state.stores.find((s) => s.id === storeId);
+  const row = document.getElementById(`edit-row-${storeId}`);
+  row.hidden = false;
+  row.querySelector('td').innerHTML = `
+    <div class="card" style="margin:8px 0;">
+      <div class="field"><label>KBZPay QR image URL</label><input id="editKbz-${storeId}" value="${escapeHtml(store.kbzpay_qr_url || '')}"></div>
+      <div class="field"><label>Ambient music URL</label><input id="editAmbient-${storeId}" value="${escapeHtml(store.ambient_audio_url || '')}"></div>
+      <div class="field"><label><input type="checkbox" id="editAmbientOn-${storeId}" style="width:auto;margin-right:6px;" ${store.ambient_audio_enabled ? 'checked' : ''}>Play while browsing the menu</label></div>
+      <button class="btn" id="saveStoreEdit-${storeId}">Save</button>
+    </div>
+  `;
+  document.getElementById(`saveStoreEdit-${storeId}`).addEventListener('click', async () => {
+    await api(`/admin/stores/${storeId}`, {
+      method: 'PATCH',
+      body: {
+        kbzpay_qr_url: document.getElementById(`editKbz-${storeId}`).value.trim() || null,
+        ambient_audio_url: document.getElementById(`editAmbient-${storeId}`).value.trim() || null,
+        ambient_audio_enabled: document.getElementById(`editAmbientOn-${storeId}`).checked,
+      },
+    });
+    renderStores();
   });
 }
 

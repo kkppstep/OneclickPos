@@ -36,7 +36,9 @@ ordering page. Run against a Postgres database created from
   authenticated CRUD, scoped to the caller's own tenant. Category/
   product writes require `owner` or `manager` role at any of the
   tenant's stores; store creation just requires being logged in (the
-  creator becomes that store's `owner` automatically).
+  creator becomes that store's `owner` automatically). `PATCH
+  /admin/stores/:storeId` (owner/manager) updates an existing store's
+  settings — currently `kbzpay_qr_url` and the ambient-audio fields.
 - `GET /admin/orders?store_id=` — user-authenticated, requires
   `owner`/`manager` at that specific store.
 - `POST /admin/stores/:storeId/provisioning-codes` — user-authenticated,
