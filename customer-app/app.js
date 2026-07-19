@@ -1,7 +1,7 @@
 // ============================================================
 // Config
 // ============================================================
-const CLOUD_API_BASE = 'https://api.yourpos.com';
+const CLOUD_API_BASE = 'https://oneclick-pos.vercel.app';
 const CLOUD_TIMEOUT_MS = 4000;
 const LOCAL_HUB_TIMEOUT_MS = 4000;
 const PLACEHOLDER_IMAGE = 'data:image/svg+xml;utf8,' + encodeURIComponent(
