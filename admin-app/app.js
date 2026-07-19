@@ -142,6 +142,62 @@ function dropZoneHtml(zoneId, label) {
 }
 
 // ============================================================
+// Reusable menu-theme fields: preset dropdown + custom controls.
+// Shared between store creation and the per-store edit row via a
+// unique `prefix` so element ids don't collide.
+// ============================================================
+function themeFieldsHtml(prefix, current) {
+  const theme = current || { preset: 'green' };
+  const preset = theme.preset || 'green';
+  return `
+    <div class="field"><label>Menu theme</label>
+      <select id="${prefix}-preset">
+        <option value="green" ${preset === 'green' ? 'selected' : ''}>Green (default)</option>
+        <option value="cozy" ${preset === 'cozy' ? 'selected' : ''}>Cozy (warm browns)</option>
+        <option value="ice" ${preset === 'ice' ? 'selected' : ''}>Ice (cool blues)</option>
+        <option value="custom" ${preset === 'custom' ? 'selected' : ''}>Custom</option>
+      </select>
+    </div>
+    <div id="${prefix}-custom-fields" ${preset === 'custom' ? '' : 'hidden'}>
+      <div class="field"><label>Accent color</label>
+        <input id="${prefix}-primary" type="color" value="${theme.primary_color || '#1B7A3D'}" style="height:40px;padding:4px;">
+      </div>
+      <div class="field"><label>Background gradient (optional, ignored if an image is set)</label>
+        <div style="display:flex;gap:10px;">
+          <input id="${prefix}-gradFrom" type="color" value="${theme.gradient_from || '#ffffff'}" style="height:40px;padding:4px;flex:1;">
+          <input id="${prefix}-gradTo" type="color" value="${theme.gradient_to || '#ffffff'}" style="height:40px;padding:4px;flex:1;">
+        </div>
+      </div>
+      <div class="field"><label>Background image (optional, overrides gradient)</label>
+        ${dropZoneHtml(`${prefix}-bgDrop`, 'Drag a background image here, or click to browse')}
+        <input id="${prefix}-bgUrl" value="${escapeHtml(theme.background_image_url || '')}" placeholder="https://.../background.jpg">
+      </div>
+    </div>
+  `;
+}
+
+function wireThemeFields(prefix) {
+  const presetSelect = document.getElementById(`${prefix}-preset`);
+  const customFields = document.getElementById(`${prefix}-custom-fields`);
+  presetSelect.addEventListener('change', () => {
+    customFields.hidden = presetSelect.value !== 'custom';
+  });
+  attachUploadZone(`${prefix}-bgDrop`, `${prefix}-bgUrl`, `${prefix}-bgDrop-status`);
+}
+
+function collectThemeConfig(prefix) {
+  const preset = document.getElementById(`${prefix}-preset`).value;
+  if (preset !== 'custom') return { preset };
+  return {
+    preset: 'custom',
+    primary_color: document.getElementById(`${prefix}-primary`).value,
+    gradient_from: document.getElementById(`${prefix}-gradFrom`).value,
+    gradient_to: document.getElementById(`${prefix}-gradTo`).value,
+    background_image_url: document.getElementById(`${prefix}-bgUrl`).value.trim() || null,
+  };
+}
+
+// ============================================================
 // Login (and one-time tenant bootstrap for the platform operator)
 // ============================================================
 function renderLogin() {
@@ -250,6 +306,7 @@ async function renderStores() {
         <input id="storeAmbientUrl" placeholder="https://.../lobby-loop.mp3">
       </div>
       <div class="field"><label><input type="checkbox" id="storeAmbientEnabled" style="width:auto;margin-right:6px;">Play while browsing the menu</label></div>
+      ${themeFieldsHtml('createTheme')}
       <button class="btn" id="createStoreBtn">Create store</button>
     </div>
     <div id="storesTable">Loading…</div>
@@ -257,6 +314,7 @@ async function renderStores() {
 
   attachUploadZone('storeKbzDrop', 'storeKbzQr', 'storeKbzDrop-status');
   attachUploadZone('storeAmbientDrop', 'storeAmbientUrl', 'storeAmbientDrop-status');
+  wireThemeFields('createTheme');
 
   document.getElementById('createStoreBtn').addEventListener('click', async () => {
     const name = document.getElementById('storeName').value.trim();
@@ -270,6 +328,7 @@ async function renderStores() {
         kbzpay_qr_url: document.getElementById('storeKbzQr').value.trim() || null,
         ambient_audio_url: document.getElementById('storeAmbientUrl').value.trim() || null,
         ambient_audio_enabled: document.getElementById('storeAmbientEnabled').checked,
+        theme_config: collectThemeConfig('createTheme'),
       },
     });
     renderStores();
@@ -315,11 +374,13 @@ function openStoreEditRow(storeId) {
         <input id="editAmbient-${storeId}" value="${escapeHtml(store.ambient_audio_url || '')}">
       </div>
       <div class="field"><label><input type="checkbox" id="editAmbientOn-${storeId}" style="width:auto;margin-right:6px;" ${store.ambient_audio_enabled ? 'checked' : ''}>Play while browsing the menu</label></div>
+      ${themeFieldsHtml(`editTheme-${storeId}`, store.theme_config)}
       <button class="btn" id="saveStoreEdit-${storeId}">Save</button>
     </div>
   `;
   attachUploadZone(`editKbzDrop-${storeId}`, `editKbz-${storeId}`, `editKbzDrop-${storeId}-status`);
   attachUploadZone(`editAmbientDrop-${storeId}`, `editAmbient-${storeId}`, `editAmbientDrop-${storeId}-status`);
+  wireThemeFields(`editTheme-${storeId}`);
   document.getElementById(`saveStoreEdit-${storeId}`).addEventListener('click', async () => {
     await api(`/admin/stores/${storeId}`, {
       method: 'PATCH',
@@ -327,6 +388,7 @@ function openStoreEditRow(storeId) {
         kbzpay_qr_url: document.getElementById(`editKbz-${storeId}`).value.trim() || null,
         ambient_audio_url: document.getElementById(`editAmbient-${storeId}`).value.trim() || null,
         ambient_audio_enabled: document.getElementById(`editAmbientOn-${storeId}`).checked,
+        theme_config: collectThemeConfig(`editTheme-${storeId}`),
       },
     });
     renderStores();

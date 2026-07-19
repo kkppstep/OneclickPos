@@ -1,8 +1,8 @@
 :root {
-  --green: #1B7A3D;
-  --green-dark: #125C2E;
-  --green-light: #EAF7EE;
-  --green-pale: #DCF0E2;
+  --accent: #1B7A3D;
+  --accent-dark: #125C2E;
+  --accent-light: #EAF7EE;
+  --accent-pale: #DCF0E2;
   --text: #1C2620;
   --text-muted: #6B7C72;
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -17,11 +17,11 @@ body {
 
 /* ---------- Top bar + category nav ---------- */
 .topbar { background: #fff; border-bottom: 1px solid #eee; z-index: 1030; }
-.brand { font-weight: 700; font-size: 1.05rem; color: var(--green-dark); }
+.brand { font-weight: 700; font-size: 1.05rem; color: var(--accent-dark); }
 .table-badge {
   font-size: 0.8rem;
-  color: var(--green);
-  border: 1px solid var(--green);
+  color: var(--accent);
+  border: 1px solid var(--accent);
   border-radius: 999px;
   padding: 3px 12px;
 }
@@ -36,8 +36,8 @@ body {
 .category-nav::-webkit-scrollbar { display: none; }
 .category-pill {
   flex-shrink: 0;
-  border: 1px solid var(--green);
-  color: var(--green-dark);
+  border: 1px solid var(--accent);
+  color: var(--accent-dark);
   background: #fff;
   border-radius: 999px;
   padding: 7px 16px;
@@ -45,7 +45,7 @@ body {
   font-weight: 600;
   white-space: nowrap;
 }
-.category-pill.active { background: var(--green); color: #fff; }
+.category-pill.active { background: var(--accent); color: #fff; }
 
 /* ---------- Category sections ---------- */
 .category-section { scroll-margin-top: 96px; padding: 20px 14px 4px; }
@@ -64,17 +64,17 @@ body {
   width: 100%;
   height: 180px;
   object-fit: cover;
-  background: var(--green-light);
+  background: var(--accent-light);
   display: block;
 }
 .product-card .card-body { padding: 12px 14px; }
 .product-card .card-title { font-size: 1rem; font-weight: 700; margin-bottom: 2px; }
 .product-card .card-text { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px; }
 .product-card .price-row { display: flex; justify-content: space-between; align-items: center; }
-.product-card .price { font-weight: 700; color: var(--green-dark); }
+.product-card .price { font-weight: 700; color: var(--accent-dark); }
 .product-card .add-btn {
   width: 36px; height: 36px; border-radius: 50%;
-  background: var(--green); color: #fff; border: none;
+  background: var(--accent); color: #fff; border: none;
   font-size: 1.2rem; line-height: 1;
   display: flex; align-items: center; justify-content: center;
 }
@@ -94,7 +94,7 @@ body {
   position: fixed;
   left: 16px; right: 16px; bottom: 16px;
   max-width: 480px; margin: 0 auto;
-  background: var(--green);
+  background: var(--accent);
   color: #fff;
   border: none;
   border-radius: 14px;
@@ -106,16 +106,16 @@ body {
 }
 
 /* ---------- Product modal ---------- */
-.pm-image { width: 100%; height: 220px; object-fit: cover; background: var(--green-light); }
+.pm-image { width: 100%; height: 220px; object-fit: cover; background: var(--accent-light); }
 .pm-body { padding: 18px 20px; }
 .pm-title { font-size: 1.15rem; font-weight: 700; margin-bottom: 4px; }
 .pm-desc { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 14px; }
-.pm-price { font-size: 1.05rem; font-weight: 700; color: var(--green-dark); margin-bottom: 16px; }
+.pm-price { font-size: 1.05rem; font-weight: 700; color: var(--accent-dark); margin-bottom: 16px; }
 
 .qty-stepper { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
 .qty-btn {
-  width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--green);
-  background: #fff; color: var(--green-dark); font-size: 1.2rem; font-weight: 700;
+  width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--accent);
+  background: #fff; color: var(--accent-dark); font-size: 1.2rem; font-weight: 700;
   display: flex; align-items: center; justify-content: center;
 }
 .qty-value { font-size: 1.1rem; font-weight: 700; min-width: 24px; text-align: center; }
@@ -127,7 +127,7 @@ body {
 }
 
 .btn-green {
-  width: 100%; background: var(--green); color: #fff; border: none;
+  width: 100%; background: var(--accent); color: #fff; border: none;
   border-radius: 12px; padding: 14px; font-weight: 700; font-size: 0.95rem;
 }
 .btn-green-outline {
@@ -146,7 +146,7 @@ body {
 .payment-option {
   border: 2px solid #eee; border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; font-weight: 600; font-size: 0.92rem;
 }
-.payment-option.selected { border-color: var(--green); background: var(--green-light); }
+.payment-option.selected { border-color: var(--accent); background: var(--accent-light); }
 .payment-option .hint { font-weight: 400; font-size: 0.78rem; color: var(--text-muted); display: block; margin-top: 2px; }
 
 .qr-panel { text-align: center; padding: 8px 0; }
@@ -154,12 +154,17 @@ body {
 
 .confirmation { text-align: center; padding: 30px 10px; }
 .confirmation .mark {
-  width: 56px; height: 56px; border-radius: 50%; background: var(--green); color: #fff;
+  width: 56px; height: 56px; border-radius: 50%; background: var(--accent); color: #fff;
   font-size: 1.6rem; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px;
 }
 
 .state-message { text-align: center; color: var(--text-muted); padding: 60px 20px; }
 .state-message.error { color: #A6301F; }
+
+/* ---------- Themed background (image/gradient themes) ---------- */
+body.themed-bg { background-attachment: fixed; background-size: cover; background-position: center; }
+body.themed-bg .topbar { background: rgba(255,255,255,0.92); backdrop-filter: blur(4px); }
+body.themed-bg main { background: rgba(255,255,255,0.9); border-radius: 18px; margin: 10px; padding-bottom: 10px; }
 
 /* ---------- Ambient music toggle ---------- */
 .ambient-toggle {
@@ -168,9 +173,9 @@ body {
   right: 14px;
   width: 38px; height: 38px;
   border-radius: 50%;
-  border: 1px solid var(--green);
+  border: 1px solid var(--accent);
   background: #fff;
-  color: var(--green-dark);
+  color: var(--accent-dark);
   font-size: 1rem;
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 2px 6px rgba(0,0,0,0.1);

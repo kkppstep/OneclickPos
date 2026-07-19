@@ -26,17 +26,27 @@ https://order.yourpos.com/?store=<store_id>&table=<table_number>
   running item count and total. Tapping it opens the cart, then payment
   (cash or KBZPay QR), then a confirmation screen.
 
+## Menu theme
+
+Set by the owner in admin-app (Stores → create or Edit settings):
+preset (Green/Cozy/Ice) or Custom with their own accent color,
+background gradient, or background image (drag-and-drop upload, same
+mechanism as product photos). Applied at runtime via CSS custom
+properties — this is a no-build static page, so there's no per-store
+build step to bake colors in at deploy time.
+
 ## Ambient music
 
-Set by the owner in the admin dashboard (Stores → Edit settings) as a
-URL to a small hosted audio file — there's no upload/hosting built
-here, just a link, same pattern as the KBZPay QR image. Only plays if
-the store has it enabled (`ambient_audio_enabled`).
+Set by the owner in admin-app (Stores → create or Edit settings) —
+now via drag-and-drop upload, not a pasted URL. Only plays if the
+store has it enabled (`ambient_audio_enabled`).
 
-Browsers block autoplay-with-sound until the user has interacted with
-the page, so it starts on the customer's first tap rather than on
-load, at a quiet default volume (35%), looping. A small toggle button
-lets them mute it; that choice is remembered for the browsing session.
+Autoplay-with-sound is a browser platform policy, not something any
+site can force. Playback is attempted immediately on load (succeeds on
+desktop browsers, PWAs, and returning visitors with high engagement)
+and falls back to starting on the customer's first tap if that's
+blocked — quiet default volume (35%), looping. A small toggle button
+lets them mute it; that choice is remembered for the session.
 
 **Keep the file small**: since it loops, a short clip works fine —
 15–30 seconds at 96–128kbps MP3/OGG typically lands well under 500KB,

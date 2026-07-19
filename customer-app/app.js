@@ -1,6 +1,62 @@
 // ============================================================
+// Menu theme — preset (green/cozy/ice) or custom (color/gradient/image),
+// set by the owner in admin-app and applied at runtime via CSS
+// custom properties, since this is a no-build static page (no
+// per-store build step to bake colors in at deploy time).
+// ============================================================
+const THEME_PRESETS = {
+  green: { primary: '#1B7A3D', light: '#EAF7EE', pale: '#DCF0E2' },
+  cozy: { primary: '#8B4513', light: '#FBEEE0', pale: '#F3DFC7' },
+  ice: { primary: '#2A6F97', light: '#EAF6FB', pale: '#D3ECF5' },
+};
+
+function shadeColor(hex, percent) {
+  const f = parseInt(hex.slice(1), 16);
+  const t = percent < 0 ? 0 : 255;
+  const p = Math.abs(percent);
+  const R = f >> 16, G = (f >> 8) & 0x00ff, B = f & 0x0000ff;
+  return '#' + (
+    0x1000000 +
+    (Math.round((t - R) * p) + R) * 0x10000 +
+    (Math.round((t - G) * p) + G) * 0x100 +
+    (Math.round((t - B) * p) + B)
+  ).toString(16).slice(1);
+}
+
+function applyTheme(theme) {
+  if (!theme) return;
+  const root = document.documentElement.style;
+  let primary, light, pale;
+
+  if (theme.preset && theme.preset !== 'custom' && THEME_PRESETS[theme.preset]) {
+    ({ primary, light, pale } = THEME_PRESETS[theme.preset]);
+  } else {
+    primary = theme.primary_color || THEME_PRESETS.green.primary;
+    light = shadeColor(primary, 0.85);
+    pale = shadeColor(primary, 0.75);
+  }
+
+  root.setProperty('--accent', primary);
+  root.setProperty('--accent-dark', shadeColor(primary, -0.25));
+  root.setProperty('--accent-light', light);
+  root.setProperty('--accent-pale', pale);
+
+  let background = null;
+  if (theme.background_image_url) {
+    background = `url('${theme.background_image_url}')`;
+  } else if (theme.gradient_from && theme.gradient_to) {
+    background = `linear-gradient(160deg, ${theme.gradient_from}, ${theme.gradient_to})`;
+  }
+  if (background) {
+    document.body.style.backgroundImage = background;
+    document.body.classList.add('themed-bg');
+  }
+}
+
+// ============================================================
 // Config
-// See config.js — edit CLOUD_API_BASE there, not here.
+// See api/config.js — CLOUD_API_BASE comes from the CLOUD_API_BASE
+// environment variable on Vercel, not a hardcoded value here.
 // ============================================================
 const CLOUD_API_BASE = (window.POS_CONFIG && window.POS_CONFIG.CLOUD_API_BASE) || '';
 const CLOUD_TIMEOUT_MS = 4000;
@@ -64,6 +120,7 @@ async function loadMenu() {
     state.localHubUrl = data.local_hub_url || null;
     state.kbzpayQrUrl = data.kbzpay_qr_url || null;
     state.ambientAudioUrl = data.ambient_audio_url || null;
+    applyTheme(data.theme);
     document.getElementById('loadingMessage').hidden = true;
     renderCategoryNav();
     renderMenu();
@@ -416,10 +473,12 @@ async function submitOrder(paymentMethod) {
 
 // ============================================================
 // Ambient music — small looping track set by the store owner.
-// Autoplay-with-sound is blocked by phone browsers until the user has
-// interacted with the page, so this starts on the customer's first
-// tap anywhere rather than on load. A visible toggle lets them mute
-// it at any time; that preference is remembered for the session.
+// Autoplay-with-sound is a browser platform policy, not something any
+// site can force — but we try immediately on load first (succeeds on
+// desktop browsers, PWAs, and returning visitors with high engagement)
+// and only fall back to starting on the first tap if that's blocked,
+// rather than requiring a deliberate "play music" button press either
+// way. A visible toggle lets the customer mute it at any time.
 // ============================================================
 function setupAmbientAudio() {
   if (!state.ambientAudioUrl) return;
@@ -441,11 +500,12 @@ function setupAmbientAudio() {
   function tryStart() {
     if (started || userMuted) return;
     audio.play().then(() => { started = true; }).catch(() => {
-      // Still blocked (e.g. iOS requiring a direct tap on the audio
-      // element itself in rare cases) — next tap will retry.
+      // Blocked by browser autoplay policy — the click listener below
+      // will retry on the customer's first tap.
     });
   }
 
+  tryStart(); // attempt immediately; silently falls through if blocked
   document.addEventListener('click', tryStart, { once: false });
 
   toggle.addEventListener('click', () => {
