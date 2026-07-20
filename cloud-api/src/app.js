@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const { authenticateHub } = require('./middleware/auth');
 const authRouter = require('./routes/auth');
+const googleAuthRouter = require('./routes/googleAuth');
+const platformAdminRouter = require('./routes/platformAdmin');
 const ordersRouter = require('./routes/orders');
 const storesRouter = require('./routes/stores');
 const adminRouter = require('./routes/admin');
@@ -39,6 +41,8 @@ app.use(publicOrdersRouter);
 // route) rather than blanket middleware here, since different admin
 // routes need different checks.
 app.use(authRouter);
+app.use(googleAuthRouter);
+app.use(platformAdminRouter);
 app.use(adminRouter);
 app.use(adminHubsRouter);
 app.use(staffRouter);

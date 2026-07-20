@@ -5,34 +5,83 @@ sync configuration, and backs the admin dashboard and customer
 ordering page. Run against a Postgres database created from
 `schema.sql` (in the project root, alongside `local-hub/`).
 
+## ⚠️ Required one-time setup: Google OAuth (for owner sign-in)
+
+This is an external dashboard step, not something deployment does for
+you — easy to miss, so it's its own section rather than a line in a
+paragraph. Owner sign-in now works via "Sign in with Google," which
+needs both of these configured **before it will work at all**:
+
+1. **Google Cloud Console** → create an OAuth 2.0 Client ID (APIs &
+   Services → Credentials → Create Credentials → OAuth client ID →
+   Web application). Note the Client ID and Client Secret.
+2. **Supabase dashboard** → Authentication → Providers → Google →
+   paste in that Client ID and Client Secret, enable the provider.
+   Supabase will show you a callback URL — add that exact URL to the
+   Google OAuth client's "Authorized redirect URIs" back in step 1.
+
+Until both of these are done, the "Sign in with Google" button in
+`admin-app` will fail silently or error out — it's not a bug in this
+code, it's this configuration being incomplete.
+
 CORS is open (`cors()` with defaults) since `customer-app` and
 `admin-app` are static sites on different domains than this API —
 without it, every browser call from them would be blocked. Worth
 restricting to your actual deployed domains before going live.
 
-## Auth — three separate schemes, deliberately not shared
+## Auth — four separate schemes, deliberately not shared
 
 - **Hub auth** — every hub carries a bearer API key issued at
   registration. The cloud stores only its SHA-256 hash
   (`hubs.api_key_hash`) and compares against that — see
   `src/middleware/auth.js`.
-- **User auth** — real login for shop owners/managers/staff. Passwords
-  are bcrypt-hashed (`users.password_hash`); `POST /auth/login` returns
-  a JWT. Per-store role (owner/manager/cashier/kitchen_staff) is looked
-  up fresh from `store_users` on every request rather than baked into
-  the token, so revoking someone's access takes effect immediately —
-  see `src/middleware/userAuth.js` and `src/middleware/roles.js`.
-- **Platform auth** — a single shared secret (`PLATFORM_API_KEY`) gates
-  only `POST /admin/tenants`, the one action with no logged-in user to
-  attach to yet, since it's what creates a brand-new tenant and its
-  first owner user. Only the platform operator (you) uses this; shop
-  owners and staff never see or need it.
+- **User auth** — real login for shop owners/managers/staff, two ways
+  in: email/password (bcrypt, `users.password_hash`) via
+  `POST /auth/login`, or Google sign-in via `POST /auth/google-exchange`
+  (see the OAuth setup section above). Both return the same JWT shape.
+  A first-time Google sign-in auto-creates a new tenant + owner user —
+  no platform key needed, that's the self-service path now. Per-store
+  role (owner/manager/cashier/kitchen_staff) is looked up fresh from
+  `store_users` on every request rather than baked into the token, so
+  revoking someone's access takes effect immediately — see
+  `src/middleware/userAuth.js` and `src/middleware/roles.js`. This
+  middleware also blocks the request entirely (`402`) if the tenant's
+  `subscription_status` is `suspended` or `cancelled`.
+- **Platform-admin auth** — real accounts for you, the platform
+  operator, separate from tenant `users` (`platform_admins` table,
+  own JWT secret `PLATFORM_JWT_SECRET` — never interchangeable with a
+  tenant-user token). `POST /platform/auth/login` for daily use.
+- **Platform bootstrap key** — `PLATFORM_API_KEY` gates
+  `POST /platform/admins` (creating your first platform-admin account)
+  and remains available as a manual alternative to Google sign-in for
+  creating a tenant (`POST /admin/tenants`). One-time actions, not
+  day-to-day auth.
 
 ## Endpoints
 
 - `GET /health` — no auth.
 - `POST /auth/login` — public. `{ email, password }` → JWT + the list
   of stores that user has a role at.
+- `POST /auth/google-exchange` — public. `{ supabase_access_token }` →
+  same response shape as `/auth/login`. Verifies the token locally
+  against `SUPABASE_JWT_SECRET`; creates a new tenant + owner on a
+  first-time sign-in (placeholder business name, renamed from the
+  Business tab afterward), or logs in an existing one.
+- `POST /platform/admins` — platform-key-gated. Creates a platform
+  admin account.
+- `POST /platform/auth/login` — public. `{ email, password }` → a
+  platform-admin JWT (separate token type from tenant users).
+- `GET /platform/tenants` — platform-admin. Every tenant, with store
+  counts, for the operator's overview.
+- `PATCH /platform/tenants/:id` — platform-admin. Change
+  `subscription_status`/`subscription_plan_id`/`subscription_expires_at`
+  — this is what has real teeth, since `authenticateUser` checks
+  status on every tenant-user request.
+- `/platform/plans` (GET/POST/PATCH) — platform-admin. CRUD for
+  `subscription_plans`, including a free-form `features` JSONB bag.
+  **Not yet enforced** — defining what a plan includes doesn't
+  currently restrict what a tenant on that plan can do; see
+  "not yet implemented" below.
 - `POST /admin/tenants` — platform-gated. Creates a tenant AND its
   first owner user in one call (there's no logged-in user yet to
   attach it to).
@@ -99,13 +148,19 @@ vercel deploy
 `vercel.json` routes every request through `api/index.js`, which
 re-exports the same Express app used for local dev (`src/app.js`) — no
 duplicate route definitions to maintain. Set `DATABASE_URL`,
-`PLATFORM_API_KEY`, `JWT_SECRET`, `SUPABASE_URL`, and
-`SUPABASE_SERVICE_ROLE_KEY` as Vercel environment variables.
-Use a connection pooler (e.g. Supabase or Neon's pgbouncer endpoint) for
-`DATABASE_URL` in production — see the comment in `src/db.js`.
+`PLATFORM_API_KEY`, `JWT_SECRET`, `PLATFORM_JWT_SECRET`,
+`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_JWT_SECRET`
+as Vercel environment variables. Use a connection pooler (e.g.
+Supabase or Neon's pgbouncer endpoint) for `DATABASE_URL` in
+production — see the comment in `src/db.js`.
 
 ## Not yet implemented (next steps)
 
+- **Subscription plan feature enforcement** — `subscription_plans.features`
+  is stored (JSONB) and editable via `/platform/plans`, and a tenant
+  can be assigned a plan, but nothing actually reads those flags to
+  restrict what a tenant can do. The data model and admin UI exist;
+  the enforcement layer doesn't yet.
 - Password reset / self-service invite flow — an owner sets a staff
   member's initial password directly right now rather than sending an
   invite link.

@@ -11,6 +11,9 @@ const state = {
   categories: [],
   products: [],
   storeId: localStorage.getItem('storeId') || '',
+  platformToken: localStorage.getItem('platformToken') || '',
+  platformAdmin: JSON.parse(localStorage.getItem('platformAdmin') || 'null'),
+  isPlatformMode: false,
 };
 
 function persist(key, value) {
@@ -24,6 +27,13 @@ function logout() {
   state.user = null;
   state.storeId = '';
   switchTab('login');
+}
+
+function platformLogout() {
+  ['platformToken', 'platformAdmin'].forEach((k) => localStorage.removeItem(k));
+  state.platformToken = '';
+  state.platformAdmin = null;
+  switchTab('platformLogin');
 }
 
 // ============================================================
@@ -50,6 +60,30 @@ async function api(path, options = {}) {
   return res.json();
 }
 
+// Same shape as api(), but authenticated as the platform admin
+// (separate token/secret from tenant users — see cloud-api's
+// middleware/platformAdminAuth.js).
+async function platformApi(path, options = {}) {
+  const res = await fetch(`${state.apiBase}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(state.platformToken ? { Authorization: `Bearer ${state.platformToken}` } : {}),
+      ...options.headers,
+    },
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+  if (res.status === 401) {
+    platformLogout();
+    throw new Error('Session expired — please log in again.');
+  }
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`${res.status} ${text}`);
+  }
+  return res.json();
+}
+
 // ============================================================
 // Navigation
 // ============================================================
@@ -65,21 +99,44 @@ const TABS = {
   liveOrders: renderLiveOrders,
   orders: renderOrders,
   analytics: renderAnalytics,
+  platformLogin: renderPlatformLogin,
+  platformTenants: renderPlatformTenants,
+  platformPlans: renderPlatformPlans,
 };
 
 let liveOrdersInterval = null;
 
 function switchTab(tab) {
-  if (tab !== 'login' && !state.token) tab = 'login';
+  if (state.isPlatformMode) {
+    if (tab !== 'platformLogin' && !state.platformToken) tab = 'platformLogin';
+  } else if (tab !== 'login' && !state.token) {
+    tab = 'login';
+  }
   if (liveOrdersInterval) { clearInterval(liveOrdersInterval); liveOrdersInterval = null; }
   document.querySelectorAll('.nav-item').forEach((el) => el.classList.toggle('active', el.dataset.tab === tab));
   updateContextBar();
   TABS[tab]();
 }
 
-document.querySelectorAll('.nav-item').forEach((el) => el.addEventListener('click', () => switchTab(el.dataset.tab)));
+document.querySelectorAll('.nav-item[data-tab]').forEach((el) => el.addEventListener('click', () => switchTab(el.dataset.tab)));
+
+document.getElementById('platformModeToggle').addEventListener('click', () => {
+  state.isPlatformMode = !state.isPlatformMode;
+  document.querySelectorAll('.owner-nav-item').forEach((el) => { el.hidden = state.isPlatformMode; });
+  document.querySelectorAll('.platform-nav-item').forEach((el) => { el.hidden = !state.isPlatformMode; });
+  document.getElementById('platformModeToggle').textContent = state.isPlatformMode ? '\u2699 Back to shop admin' : '\u2699 Platform admin';
+  switchTab(state.isPlatformMode ? 'platformLogin' : 'login');
+});
 
 function updateContextBar() {
+  if (state.isPlatformMode) {
+    document.getElementById('contextBar').innerHTML = state.platformAdmin ? `
+      ${escapeHtml(state.platformAdmin.email)} (platform)<br>
+      <a href="#" id="platformLogoutLink" style="color:var(--gold)">Log out</a>
+    ` : '';
+    document.getElementById('platformLogoutLink')?.addEventListener('click', (e) => { e.preventDefault(); platformLogout(); });
+    return;
+  }
   const store = state.stores.find((s) => s.id === state.storeId);
   document.getElementById('contextBar').innerHTML = state.user ? `
     ${escapeHtml(state.user.email)}<br>
@@ -207,6 +264,8 @@ function renderLogin() {
     <div class="login-grid">
     <div class="card">
       <div class="field"><label>Cloud API URL</label><input id="apiBaseInput" value="${escapeHtml(state.apiBase)}" placeholder="https://your-api.vercel.app"></div>
+      <button class="btn" id="googleSignInBtn" style="background:#fff;color:var(--text);border:1px solid var(--ivory-dim);width:100%;margin-bottom:14px;">Sign in with Google</button>
+      <div style="text-align:center;color:var(--text-muted);font-size:0.8rem;margin-bottom:14px;">— or —</div>
       <div class="field"><label>Email</label><input id="loginEmail"></div>
       <div class="field"><label>Password</label><input id="loginPassword" type="password"></div>
       <button class="btn" id="loginBtn">Log in</button>
@@ -214,8 +273,8 @@ function renderLogin() {
     </div>
 
     <div class="card">
-      <div style="font-weight:600;margin-bottom:8px;">First time setting up a new business?</div>
-      <div class="subtitle" style="margin-bottom:14px;">Requires the platform operator's key — a one-time step done once per new business, not for daily staff login.</div>
+      <div style="font-weight:600;margin-bottom:8px;">Prefer not to use Google?</div>
+      <div class="subtitle" style="margin-bottom:14px;">Requires the platform operator's key — a manual alternative to Google sign-in for a new business, not for daily staff login.</div>
       <div class="field"><label>Platform key</label><input id="platformKey" type="password"></div>
       <div class="field"><label>Business name</label><input id="bizName"></div>
       <div class="field"><label>Owner name</label><input id="ownerName"></div>
@@ -226,6 +285,16 @@ function renderLogin() {
     </div>
     </div>
   `);
+
+  document.getElementById('googleSignInBtn').addEventListener('click', async () => {
+    persist('apiBase', document.getElementById('apiBaseInput').value.replace(/\/$/, ''));
+    const supa = getSupabaseClient();
+    if (!supa) {
+      document.getElementById('loginResult').innerHTML = `<span style="color:#A6301F">Google sign-in isn't configured (missing SUPABASE_URL/SUPABASE_ANON_KEY).</span>`;
+      return;
+    }
+    await supa.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.href } });
+  });
 
   document.getElementById('loginBtn').addEventListener('click', async () => {
     persist('apiBase', document.getElementById('apiBaseInput').value.replace(/\/$/, ''));
@@ -850,10 +919,217 @@ async function renderOrders() {
 }
 
 // ============================================================
+// Platform admin — separate mode, separate auth, separate token.
+// ============================================================
+function renderPlatformLogin() {
+  setContent(`
+    <h1>Platform admin</h1>
+    <div class="subtitle">Operator-only. Not for shop owners or staff.</div>
+    <div class="card">
+      <div class="field"><label>Email</label><input id="platformLoginEmail"></div>
+      <div class="field"><label>Password</label><input id="platformLoginPassword" type="password"></div>
+      <button class="btn" id="platformLoginBtn">Log in</button>
+      <div id="platformLoginResult" style="margin-top:12px;"></div>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:600;margin-bottom:8px;">First time — create your platform admin account</div>
+      <div class="subtitle" style="margin-bottom:14px;">Requires PLATFORM_API_KEY. One-time; after this, log in above like normal.</div>
+      <div class="field"><label>Platform key</label><input id="platformBootstrapKey" type="password"></div>
+      <div class="field"><label>Name</label><input id="platformAdminName"></div>
+      <div class="field"><label>Email</label><input id="platformAdminEmail"></div>
+      <div class="field"><label>Password</label><input id="platformAdminPassword" type="password"></div>
+      <button class="btn secondary" id="platformBootstrapBtn">Create platform admin</button>
+      <div id="platformBootstrapResult" style="margin-top:12px;"></div>
+    </div>
+  `);
+
+  document.getElementById('platformLoginBtn').addEventListener('click', async () => {
+    const resultEl = document.getElementById('platformLoginResult');
+    try {
+      const data = await fetch(`${state.apiBase}/platform/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: document.getElementById('platformLoginEmail').value.trim(),
+          password: document.getElementById('platformLoginPassword').value,
+        }),
+      }).then(async (res) => { if (!res.ok) throw new Error(await res.text()); return res.json(); });
+
+      persist('platformToken', data.token);
+      persist('platformAdmin', data.admin);
+      switchTab('platformTenants');
+    } catch (err) {
+      resultEl.innerHTML = `<span style="color:#A6301F">${escapeHtml(err.message)}</span>`;
+    }
+  });
+
+  document.getElementById('platformBootstrapBtn').addEventListener('click', async () => {
+    const resultEl = document.getElementById('platformBootstrapResult');
+    try {
+      const res = await fetch(`${state.apiBase}/platform/admins`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${document.getElementById('platformBootstrapKey').value}` },
+        body: JSON.stringify({
+          name: document.getElementById('platformAdminName').value.trim(),
+          email: document.getElementById('platformAdminEmail').value.trim(),
+          password: document.getElementById('platformAdminPassword').value,
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      resultEl.innerHTML = `<span style="color:#2C5A28">Created — log in above.</span>`;
+    } catch (err) {
+      resultEl.innerHTML = `<span style="color:#A6301F">${escapeHtml(err.message)}</span>`;
+    }
+  });
+}
+
+async function renderPlatformTenants() {
+  setContent(`<h1>Tenants</h1><div class="subtitle">Every business on the platform.</div><div id="tenantsList">Loading…</div>`);
+
+  const STATUS_OPTIONS = ['trial', 'active', 'past_due', 'suspended', 'cancelled'];
+
+  try {
+    const data = await platformApi('/platform/tenants');
+    const listEl = document.getElementById('tenantsList');
+    listEl.innerHTML = data.tenants.map((t) => `
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:start;">
+          <div>
+            <div style="font-weight:700;">${escapeHtml(t.business_name)}</div>
+            <div style="font-size:0.8rem;color:var(--text-muted);">${t.store_count} store(s) — ${escapeHtml(t.contact_email || 'no contact email')}</div>
+          </div>
+          <span class="pill ${t.subscription_status === 'active' ? 'synced' : t.subscription_status === 'trial' ? 'pending' : ''}">${escapeHtml(t.subscription_status)}</span>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px;align-items:center;">
+          <select id="statusSelect-${t.id}">
+            ${STATUS_OPTIONS.map((s) => `<option value="${s}" ${s === t.subscription_status ? 'selected' : ''}>${s}</option>`).join('')}
+          </select>
+          <button class="btn secondary save-tenant-status" data-id="${t.id}">Save</button>
+          ${t.subscription_expires_at ? `<span style="font-size:0.78rem;color:var(--text-muted);">expires ${new Date(t.subscription_expires_at).toLocaleDateString()}</span>` : ''}
+        </div>
+      </div>
+    `).join('');
+
+    listEl.querySelectorAll('.save-tenant-status').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const status = document.getElementById(`statusSelect-${btn.dataset.id}`).value;
+        await platformApi(`/platform/tenants/${btn.dataset.id}`, { method: 'PATCH', body: { subscription_status: status } });
+        renderPlatformTenants();
+      });
+    });
+  } catch (err) {
+    document.getElementById('tenantsList').innerHTML = `<div class="state-message error">${escapeHtml(err.message)}</div>`;
+  }
+}
+
+async function renderPlatformPlans() {
+  setContent(`
+    <h1>Subscription plans</h1>
+    <div class="card">
+      <div class="field"><label>Name</label><input id="planName"></div>
+      <div class="field"><label>Price (MMK)</label><input id="planPrice" type="number"></div>
+      <div class="field"><label>Billing cycle</label>
+        <select id="planCycle"><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select>
+      </div>
+      <div class="field"><label>Max stores (blank = unlimited)</label><input id="planMaxStores" type="number"></div>
+      <button class="btn" id="createPlanBtn">Add plan</button>
+    </div>
+    <div id="plansList">Loading…</div>
+  `);
+
+  document.getElementById('createPlanBtn').addEventListener('click', async () => {
+    const name = document.getElementById('planName').value.trim();
+    const price_mmk = Number(document.getElementById('planPrice').value);
+    if (!name || !price_mmk) return;
+    await platformApi('/platform/plans', {
+      method: 'POST',
+      body: {
+        name, price_mmk,
+        billing_cycle: document.getElementById('planCycle').value,
+        max_stores: document.getElementById('planMaxStores').value ? Number(document.getElementById('planMaxStores').value) : null,
+      },
+    });
+    renderPlatformPlans();
+  });
+
+  try {
+    const data = await platformApi('/platform/plans');
+    document.getElementById('plansList').innerHTML = data.plans.length === 0
+      ? `<div class="state-message">No plans yet.</div>`
+      : `<table><thead><tr><th>Name</th><th>Price</th><th>Cycle</th><th>Max stores</th></tr></thead><tbody>${
+          data.plans.map((p) => `
+            <tr><td>${escapeHtml(p.name)}</td><td>${Number(p.price_mmk).toLocaleString()} MMK</td><td>${escapeHtml(p.billing_cycle)}</td><td>${p.max_stores ?? 'Unlimited'}</td></tr>
+          `).join('')
+        }</tbody></table>`;
+  } catch (err) {
+    document.getElementById('plansList').innerHTML = `<div class="state-message error">${escapeHtml(err.message)}</div>`;
+  }
+}
+
+// ============================================================
+// Google sign-in (Supabase Auth) plumbing
+// ============================================================
+let _supabaseClient;
+function getSupabaseClient() {
+  if (_supabaseClient !== undefined) return _supabaseClient;
+  const cfg = window.POS_CONFIG || {};
+  if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY || typeof window.supabase === 'undefined') {
+    _supabaseClient = null;
+  } else {
+    _supabaseClient = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+  }
+  return _supabaseClient;
+}
+
+// Called at boot. If the browser just came back from Google's OAuth
+// redirect, Supabase's client picks up the session automatically from
+// the URL — we just need to hand its access token to our own
+// /auth/google-exchange to get our app's JWT (same shape as a normal
+// email/password login from there on).
+async function tryGoogleSessionExchange() {
+  const supa = getSupabaseClient();
+  if (!supa) return false;
+
+  const { data } = await supa.auth.getSession();
+  const accessToken = data?.session?.access_token;
+  if (!accessToken) return false;
+
+  try {
+    const result = await api('/auth/google-exchange', { method: 'POST', body: { supabase_access_token: accessToken } });
+    persist('token', result.token);
+    persist('user', result.user);
+    state.stores = result.stores.map((s) => ({ id: s.store_id, name: s.store_name, my_role: s.role }));
+    await supa.auth.signOut(); // done with the Supabase session; our own JWT drives the app from here
+    return true;
+  } catch (err) {
+    console.error('[auth] google exchange failed:', err.message);
+    return false;
+  }
+}
+
+// ============================================================
 // Boot
 // ============================================================
-if (state.token && state.user) {
-  api('/admin/stores').then((data) => { state.stores = data.stores; switchTab('business'); }).catch(() => switchTab('login'));
-} else {
+async function boot() {
+  if (state.token && state.user) {
+    try {
+      const data = await api('/admin/stores');
+      state.stores = data.stores;
+      switchTab('business');
+      return;
+    } catch (err) {
+      // falls through to login below
+    }
+  }
+
+  const exchanged = await tryGoogleSessionExchange();
+  if (exchanged) {
+    switchTab('business');
+    return;
+  }
+
   switchTab('login');
 }
+
+boot();
