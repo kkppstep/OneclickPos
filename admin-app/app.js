@@ -260,29 +260,15 @@ function collectThemeConfig(prefix) {
 function renderLogin() {
   setContent(`
     <h1>Log in</h1>
-    <div class="subtitle">Enter your deployed cloud API URL, then log in.</div>
-    <div class="login-grid">
-    <div class="card">
+    <div class="subtitle">Business owners: sign in with Google. Staff: use the email/password your owner gave you.</div>
+    <div class="card" style="max-width:420px;">
       <div class="field"><label>Cloud API URL</label><input id="apiBaseInput" value="${escapeHtml(state.apiBase)}" placeholder="https://your-api.vercel.app"></div>
       <button class="btn" id="googleSignInBtn" style="background:#fff;color:var(--text);border:1px solid var(--ivory-dim);width:100%;margin-bottom:14px;">Sign in with Google</button>
-      <div style="text-align:center;color:var(--text-muted);font-size:0.8rem;margin-bottom:14px;">— or —</div>
+      <div style="text-align:center;color:var(--text-muted);font-size:0.8rem;margin-bottom:14px;">— staff log in —</div>
       <div class="field"><label>Email</label><input id="loginEmail"></div>
       <div class="field"><label>Password</label><input id="loginPassword" type="password"></div>
       <button class="btn" id="loginBtn">Log in</button>
       <div id="loginResult" style="margin-top:12px;"></div>
-    </div>
-
-    <div class="card">
-      <div style="font-weight:600;margin-bottom:8px;">Prefer not to use Google?</div>
-      <div class="subtitle" style="margin-bottom:14px;">Requires the platform operator's key — a manual alternative to Google sign-in for a new business, not for daily staff login.</div>
-      <div class="field"><label>Platform key</label><input id="platformKey" type="password"></div>
-      <div class="field"><label>Business name</label><input id="bizName"></div>
-      <div class="field"><label>Owner name</label><input id="ownerName"></div>
-      <div class="field"><label>Owner email</label><input id="ownerEmail"></div>
-      <div class="field"><label>Owner password</label><input id="ownerPassword" type="password"></div>
-      <button class="btn secondary" id="bootstrapBtn">Create business</button>
-      <div id="bootstrapResult" style="margin-top:12px;"></div>
-    </div>
     </div>
   `);
 
@@ -309,27 +295,6 @@ function renderLogin() {
       state.stores = data.stores.map((s) => ({ id: s.store_id, name: s.store_name, my_role: s.role }));
       resultEl.innerHTML = `<span style="color:#2C5A28">Logged in as ${escapeHtml(data.user.email)}.</span>`;
       switchTab('business');
-    } catch (err) {
-      resultEl.innerHTML = `<span style="color:#A6301F">${escapeHtml(err.message)}</span>`;
-    }
-  });
-
-  document.getElementById('bootstrapBtn').addEventListener('click', async () => {
-    persist('apiBase', document.getElementById('apiBaseInput').value.replace(/\/$/, ''));
-    const resultEl = document.getElementById('bootstrapResult');
-    try {
-      const res = await fetch(`${state.apiBase}/admin/tenants`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${document.getElementById('platformKey').value}` },
-        body: JSON.stringify({
-          business_name: document.getElementById('bizName').value.trim(),
-          owner_name: document.getElementById('ownerName').value.trim(),
-          owner_email: document.getElementById('ownerEmail').value.trim(),
-          owner_password: document.getElementById('ownerPassword').value,
-        }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      resultEl.innerHTML = `<span style="color:#2C5A28">Business created — log in above with the owner email/password.</span>`;
     } catch (err) {
       resultEl.innerHTML = `<span style="color:#A6301F">${escapeHtml(err.message)}</span>`;
     }
@@ -925,22 +890,12 @@ function renderPlatformLogin() {
   setContent(`
     <h1>Platform admin</h1>
     <div class="subtitle">Operator-only. Not for shop owners or staff.</div>
-    <div class="card">
+    <div class="card" style="max-width:420px;">
       <div class="field"><label>Email</label><input id="platformLoginEmail"></div>
       <div class="field"><label>Password</label><input id="platformLoginPassword" type="password"></div>
       <button class="btn" id="platformLoginBtn">Log in</button>
       <div id="platformLoginResult" style="margin-top:12px;"></div>
-    </div>
-
-    <div class="card">
-      <div style="font-weight:600;margin-bottom:8px;">First time — create your platform admin account</div>
-      <div class="subtitle" style="margin-bottom:14px;">Requires PLATFORM_API_KEY. One-time; after this, log in above like normal.</div>
-      <div class="field"><label>Platform key</label><input id="platformBootstrapKey" type="password"></div>
-      <div class="field"><label>Name</label><input id="platformAdminName"></div>
-      <div class="field"><label>Email</label><input id="platformAdminEmail"></div>
-      <div class="field"><label>Password</label><input id="platformAdminPassword" type="password"></div>
-      <button class="btn secondary" id="platformBootstrapBtn">Create platform admin</button>
-      <div id="platformBootstrapResult" style="margin-top:12px;"></div>
+      <div class="subtitle" style="margin-top:16px;">No account yet? Platform admins are created directly via SQL, not through this app — see the root README.</div>
     </div>
   `);
 
@@ -959,25 +914,6 @@ function renderPlatformLogin() {
       persist('platformToken', data.token);
       persist('platformAdmin', data.admin);
       switchTab('platformTenants');
-    } catch (err) {
-      resultEl.innerHTML = `<span style="color:#A6301F">${escapeHtml(err.message)}</span>`;
-    }
-  });
-
-  document.getElementById('platformBootstrapBtn').addEventListener('click', async () => {
-    const resultEl = document.getElementById('platformBootstrapResult');
-    try {
-      const res = await fetch(`${state.apiBase}/platform/admins`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${document.getElementById('platformBootstrapKey').value}` },
-        body: JSON.stringify({
-          name: document.getElementById('platformAdminName').value.trim(),
-          email: document.getElementById('platformAdminEmail').value.trim(),
-          password: document.getElementById('platformAdminPassword').value,
-        }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      resultEl.innerHTML = `<span style="color:#2C5A28">Created — log in above.</span>`;
     } catch (err) {
       resultEl.innerHTML = `<span style="color:#A6301F">${escapeHtml(err.message)}</span>`;
     }

@@ -3,35 +3,15 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../db');
 const config = require('../config');
-const { authenticatePlatform } = require('../middleware/platformAuth');
 const { authenticatePlatformAdmin } = require('../middleware/platformAdminAuth');
 
 const router = express.Router();
 
-// ---------- Bootstrap & login ----------
-
-// POST /platform/admins — gated by the raw PLATFORM_API_KEY, exactly
-// like tenant bootstrap. Used once (or a few times, for additional
-// platform staff) to create real accounts, so day-to-day platform
-// management doesn't mean typing the shared key in every time.
-router.post('/platform/admins', authenticatePlatform, async (req, res) => {
-  const { name, email, password } = req.body;
-  if (!name || !email || !password) return res.status(400).json({ error: 'name_email_password_required' });
-
-  const passwordHash = await bcrypt.hash(password, 10);
-  try {
-    const { rows } = await db.query(
-      `INSERT INTO platform_admins (id, name, email, password_hash)
-       VALUES (gen_random_uuid(), $1, $2, $3) RETURNING id, name, email`,
-      [name, email, passwordHash]
-    );
-    res.status(201).json(rows[0]);
-  } catch (err) {
-    if (err.code === '23505') return res.status(409).json({ error: 'email_already_used' });
-    console.error('[platform] admin create failed:', err.message);
-    res.status(500).json({ error: 'admin_create_failed' });
-  }
-});
+// ---------- Login ----------
+// No bootstrap endpoint here on purpose — platform admin accounts are
+// created by inserting directly into platform_admins via SQL (using
+// pgcrypto's crypt()/gen_salt('bf'), already enabled in schema.sql),
+// not through the API. See the root README for the exact statement.
 
 // POST /platform/auth/login — public. Separate from tenant-user login
 // and issued with a separate secret (config.platformJwtSecret).

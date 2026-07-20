@@ -1,51 +1,13 @@
 const express = require('express');
-const bcrypt = require('bcryptjs');
 const db = require('../db');
-const { authenticatePlatform } = require('../middleware/platformAuth');
 const { authenticateUser } = require('../middleware/userAuth');
 const { requireStoreRole, requireTenantRole } = require('../middleware/roles');
 
 const router = express.Router();
 
-// ---------- Tenant bootstrap ----------
-// Platform-gated, one-time: creates a brand-new tenant AND its first
-// owner user in the same transaction, since there's no logged-in user
-// yet to attach the tenant to.
-router.post('/admin/tenants', authenticatePlatform, async (req, res) => {
-  const { business_name, contact_email, contact_phone, owner_name, owner_email, owner_password } = req.body;
-  if (!business_name || !owner_name || !owner_email || !owner_password) {
-    return res.status(400).json({ error: 'business_name_owner_name_owner_email_owner_password_required' });
-  }
-
-  const client = await db.pool.connect();
-  try {
-    await client.query('BEGIN');
-
-    const tenantRes = await client.query(
-      `INSERT INTO tenants (id, business_name, contact_email, contact_phone)
-       VALUES (gen_random_uuid(), $1, $2, $3) RETURNING *`,
-      [business_name, contact_email || null, contact_phone || null]
-    );
-    const tenant = tenantRes.rows[0];
-
-    const passwordHash = await bcrypt.hash(owner_password, 10);
-    const userRes = await client.query(
-      `INSERT INTO users (id, tenant_id, name, email, password_hash)
-       VALUES (gen_random_uuid(), $1, $2, $3, $4) RETURNING id, name, email`,
-      [tenant.id, owner_name, owner_email, passwordHash]
-    );
-
-    await client.query('COMMIT');
-    res.status(201).json({ tenant, owner: userRes.rows[0] });
-  } catch (err) {
-    await client.query('ROLLBACK');
-    if (err.code === '23505') return res.status(409).json({ error: 'owner_email_already_used' });
-    console.error('[admin] tenant bootstrap failed:', err.message);
-    res.status(500).json({ error: 'tenant_bootstrap_failed' });
-  } finally {
-    client.release();
-  }
-});
+// Tenants are created exclusively via Google sign-in now (a first-time
+// Google sign-in auto-creates one — see routes/googleAuth.js). No
+// manual/key-gated tenant creation exists anymore.
 
 // Lets a logged-in user fetch their own tenant's info.
 router.get('/admin/tenants/me', authenticateUser, async (req, res) => {

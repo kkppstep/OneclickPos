@@ -28,28 +28,24 @@ server-side in `cloud-api`.
 2. Open the deployed page and click **Sign in with Google**. A
    first-time sign-in automatically creates a new tenant (business)
    with a placeholder name and makes that Google account its owner —
-   no platform key, no separate signup form. Rename the business from
-   the **Business** tab afterward.
-3. Prefer not to use Google? The "Prefer not to use Google?" card on
-   the same screen is a manual alternative, gated by the platform
-   operator's `PLATFORM_API_KEY` — creates a tenant + owner with an
-   email/password instead.
+   no key, no separate signup form, no fallback path. Rename the
+   business from the **Business** tab afterward.
 
 ## Platform admin (you, the operator)
 
 Click **⚙ Platform admin** at the bottom of the sidebar — this swaps
 the whole sidebar into a separate mode with its own login, entirely
-disconnected from shop-owner accounts.
+disconnected from shop-owner accounts. There is no sign-up screen here
+by design: your account is created by running `create-platform-admin.sql`
+directly against the database (see the root README) — one less
+credential (a shared bootstrap key) floating around.
 
-1. First time: use the "First time — create your platform admin
-   account" card, gated by `PLATFORM_API_KEY`. One-time; log in
-   normally after that.
-2. **Tenants** — every business on the platform, with a status
+1. **Tenants** — every business on the platform, with a status
    dropdown (`trial`/`active`/`past_due`/`suspended`/`cancelled`).
    Setting a tenant to `suspended` or `cancelled` actually blocks that
    tenant's staff from logging in (`cloud-api`'s `authenticateUser`
    checks this on every request) — not just a label.
-3. **Plans** — define subscription plans (price, billing cycle, max
+2. **Plans** — define subscription plans (price, billing cycle, max
    stores). This is data-entry only right now — assigning a tenant to
    a plan doesn't restrict anything yet, including `max_stores`; see
    `cloud-api`'s README for what's not enforced.

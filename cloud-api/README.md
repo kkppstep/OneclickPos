@@ -40,22 +40,22 @@ restricting to your actual deployed domains before going live.
   `POST /auth/login`, or Google sign-in via `POST /auth/google-exchange`
   (see the OAuth setup section above). Both return the same JWT shape.
   A first-time Google sign-in auto-creates a new tenant + owner user —
-  no platform key needed, that's the self-service path now. Per-store
-  role (owner/manager/cashier/kitchen_staff) is looked up fresh from
-  `store_users` on every request rather than baked into the token, so
-  revoking someone's access takes effect immediately — see
-  `src/middleware/userAuth.js` and `src/middleware/roles.js`. This
-  middleware also blocks the request entirely (`402`) if the tenant's
-  `subscription_status` is `suspended` or `cancelled`.
+  that's the *only* way a tenant gets created; there's no manual/key-
+  gated alternative. Per-store role (owner/manager/cashier/kitchen_staff)
+  is looked up fresh from `store_users` on every request rather than
+  baked into the token, so revoking someone's access takes effect
+  immediately — see `src/middleware/userAuth.js` and
+  `src/middleware/roles.js`. This middleware also blocks the request
+  entirely (`402`) if the tenant's `subscription_status` is
+  `suspended` or `cancelled`.
 - **Platform-admin auth** — real accounts for you, the platform
   operator, separate from tenant `users` (`platform_admins` table,
   own JWT secret `PLATFORM_JWT_SECRET` — never interchangeable with a
-  tenant-user token). `POST /platform/auth/login` for daily use.
-- **Platform bootstrap key** — `PLATFORM_API_KEY` gates
-  `POST /platform/admins` (creating your first platform-admin account)
-  and remains available as a manual alternative to Google sign-in for
-  creating a tenant (`POST /admin/tenants`). One-time actions, not
-  day-to-day auth.
+  tenant-user token). `POST /platform/auth/login` for daily use. There
+  is deliberately **no API endpoint that creates a platform admin** —
+  you insert the row directly via SQL (see `create-platform-admin.sql`
+  in the project root, uses pgcrypto to bcrypt-hash the password in the
+  same INSERT). One less credential (a shared bootstrap key) to leak.
 
 ## Endpoints
 
@@ -67,10 +67,9 @@ restricting to your actual deployed domains before going live.
   against `SUPABASE_JWT_SECRET`; creates a new tenant + owner on a
   first-time sign-in (placeholder business name, renamed from the
   Business tab afterward), or logs in an existing one.
-- `POST /platform/admins` — platform-key-gated. Creates a platform
-  admin account.
 - `POST /platform/auth/login` — public. `{ email, password }` → a
-  platform-admin JWT (separate token type from tenant users).
+  platform-admin JWT (separate token type from tenant users). No
+  corresponding create-account endpoint — see `create-platform-admin.sql`.
 - `GET /platform/tenants` — platform-admin. Every tenant, with store
   counts, for the operator's overview.
 - `PATCH /platform/tenants/:id` — platform-admin. Change
@@ -82,9 +81,6 @@ restricting to your actual deployed domains before going live.
   **Not yet enforced** — defining what a plan includes doesn't
   currently restrict what a tenant on that plan can do; see
   "not yet implemented" below.
-- `POST /admin/tenants` — platform-gated. Creates a tenant AND its
-  first owner user in one call (there's no logged-in user yet to
-  attach it to).
 - `GET /admin/tenants/me` — user-authenticated. The caller's own tenant.
 - `/admin/stores`, `/admin/categories`, `/admin/products` — user-
   authenticated CRUD, scoped to the caller's own tenant. Category/
@@ -148,11 +144,11 @@ vercel deploy
 `vercel.json` routes every request through `api/index.js`, which
 re-exports the same Express app used for local dev (`src/app.js`) — no
 duplicate route definitions to maintain. Set `DATABASE_URL`,
-`PLATFORM_API_KEY`, `JWT_SECRET`, `PLATFORM_JWT_SECRET`,
-`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_JWT_SECRET`
-as Vercel environment variables. Use a connection pooler (e.g.
-Supabase or Neon's pgbouncer endpoint) for `DATABASE_URL` in
-production — see the comment in `src/db.js`.
+`JWT_SECRET`, `PLATFORM_JWT_SECRET`, `SUPABASE_URL`,
+`SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_JWT_SECRET` as Vercel
+environment variables. Use a connection pooler (e.g. Supabase or
+Neon's pgbouncer endpoint) for `DATABASE_URL` in production — see the
+comment in `src/db.js`.
 
 ## Not yet implemented (next steps)
 

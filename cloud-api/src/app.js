@@ -35,11 +35,11 @@ app.use(hubRegistrationRouter);
 app.use(publicMenuRouter);
 app.use(publicOrdersRouter);
 
-// Public login endpoint. Auth for everything under /admin/* is now
-// handled per-route inside admin.js / adminHubs.js (authenticateUser +
-// role checks, or authenticatePlatform for the one tenant-bootstrap
-// route) rather than blanket middleware here, since different admin
-// routes need different checks.
+// Public login endpoints (email/password, Google exchange, platform
+// admin). Auth for everything under /admin/* and /platform/* is
+// handled per-route (authenticateUser + role checks, or
+// authenticatePlatformAdmin) rather than blanket middleware here,
+// since different routes need different checks.
 app.use(authRouter);
 app.use(googleAuthRouter);
 app.use(platformAdminRouter);
