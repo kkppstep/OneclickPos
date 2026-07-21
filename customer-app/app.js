@@ -51,6 +51,25 @@ function applyTheme(theme) {
     document.body.style.backgroundImage = background;
     document.body.classList.add('themed-bg');
   }
+
+  if (theme.layout === 'stage') {
+    document.body.classList.add('theme-stage');
+    document.getElementById('stageSection').hidden = false;
+    loadStageFonts(); // only requested for stores actually using this layout
+  }
+}
+
+// Loads Cinzel/Montserrat/Padauk only when the Stage layout is
+// active — most stores use the standard layout and shouldn't pay for
+// fonts they never see.
+let _stageFontsLoaded = false;
+function loadStageFonts() {
+  if (_stageFontsLoaded) return;
+  _stageFontsLoaded = true;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = 'https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Padauk:wght@400;700&display=swap';
+  document.head.appendChild(link);
 }
 
 // ============================================================
@@ -166,10 +185,37 @@ function renderMenu() {
   menuEl.querySelectorAll('.product-card').forEach((card) => {
     card.addEventListener('click', () => {
       if (card.classList.contains('sold-out')) return;
+      const product = findProduct(card.dataset.productId);
+      if (document.body.classList.contains('theme-stage') && product) setStageDish(product);
       openProductModal(card.dataset.productId);
     });
   });
+
+  if (document.body.classList.contains('theme-stage')) {
+    const firstAvailable = state.menu.flatMap((c) => c.products).find((p) => p.is_available !== false);
+    if (firstAvailable) setStageDish(firstAvailable);
+  }
 }
+
+// ============================================================
+// Stage layout (Theme 2) — updates the hero dish display. Reuses the
+// same openProductModal() as the standard layout for the actual
+// add-to-cart step, so quantity/notes/payment/fallback logic is
+// identical between both layouts — no duplicated order logic.
+// ============================================================
+let stageProductId = null;
+function setStageDish(product) {
+  stageProductId = product.id;
+  document.getElementById('stageImg').src = product.image_url || PLACEHOLDER_IMAGE;
+  document.getElementById('stageImg').alt = product.name;
+  document.getElementById('stageTitle').textContent = product.name;
+  document.getElementById('stageDesc').textContent = product.description || '';
+  document.getElementById('stagePrice').textContent = formatMoney(product.price);
+}
+
+document.getElementById('stageAddBtn').addEventListener('click', () => {
+  if (stageProductId) openProductModal(stageProductId);
+});
 
 function productCardHtml(product) {
   const soldOut = product.is_available === false;

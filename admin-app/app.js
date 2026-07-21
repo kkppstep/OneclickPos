@@ -206,6 +206,7 @@ function dropZoneHtml(zoneId, label) {
 function themeFieldsHtml(prefix, current) {
   const theme = current || { preset: 'green' };
   const preset = theme.preset || 'green';
+  const layout = theme.layout || 'standard';
   return `
     <div class="field"><label>Menu theme</label>
       <select id="${prefix}-preset">
@@ -230,6 +231,12 @@ function themeFieldsHtml(prefix, current) {
         <input id="${prefix}-bgUrl" value="${escapeHtml(theme.background_image_url || '')}" placeholder="https://.../background.jpg">
       </div>
     </div>
+    <div class="field"><label>Menu layout</label>
+      <select id="${prefix}-layout">
+        <option value="standard" ${layout === 'standard' ? 'selected' : ''}>Standard — scrolling card list</option>
+        <option value="stage" ${layout === 'stage' ? 'selected' : ''}>Stage — dark, premium hero dish view</option>
+      </select>
+    </div>
   `;
 }
 
@@ -244,9 +251,11 @@ function wireThemeFields(prefix) {
 
 function collectThemeConfig(prefix) {
   const preset = document.getElementById(`${prefix}-preset`).value;
-  if (preset !== 'custom') return { preset };
+  const layout = document.getElementById(`${prefix}-layout`).value;
+  if (preset !== 'custom') return { preset, layout };
   return {
     preset: 'custom',
+    layout,
     primary_color: document.getElementById(`${prefix}-primary`).value,
     gradient_from: document.getElementById(`${prefix}-gradFrom`).value,
     gradient_to: document.getElementById(`${prefix}-gradTo`).value,

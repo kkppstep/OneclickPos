@@ -28,12 +28,31 @@ https://order.yourpos.com/?store=<store_id>&table=<table_number>
 
 ## Menu theme
 
-Set by the owner in admin-app (Stores → create or Edit settings):
-preset (Green/Cozy/Ice) or Custom with their own accent color,
-background gradient, or background image (drag-and-drop upload, same
-mechanism as product photos). Applied at runtime via CSS custom
-properties — this is a no-build static page, so there's no per-store
-build step to bake colors in at deploy time.
+Two independent choices, set by the owner in admin-app (Stores →
+create or Edit settings):
+
+- **Color**: preset (Green/Cozy/Ice) or Custom with their own accent
+  color, background gradient, or background image (drag-and-drop
+  upload, same mechanism as product photos). Applied at runtime via
+  CSS custom properties — this is a no-build static page, so there's
+  no per-store build step to bake colors in at deploy time.
+- **Layout**: Standard (the default scrolling card list) or **Stage**
+  — a dark, premium "hero dish" presentation with a large circular
+  plate view, gradient-gold pricing, and a lightweight CSS steam
+  effect. Tapping any card in the grid below updates the hero; the
+  hero's "Add to order" button opens the exact same product modal as
+  the standard layout, so quantity/notes/payment/local-hub-fallback
+  logic is identical between both layouts — nothing about ordering
+  changes, only the presentation.
+
+Stage layout lazy-loads two Google Fonts (Cinzel for display text,
+Padauk for Burmese) only when a store actually uses it — stores on the
+Standard layout never pay for that extra request. Deliberately doesn't
+include a canvas particle simulation, gyroscope tilt, or a typewriter
+text animation like some design references for this kind of view do —
+those add real weight and complexity (permission prompts, per-frame
+JS) for very little payoff on a page whose whole job is "let someone
+order food quickly on a weak connection."
 
 ## Ambient music
 

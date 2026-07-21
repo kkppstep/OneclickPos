@@ -182,3 +182,147 @@ body.themed-bg main { background: rgba(255,255,255,0.9); border-radius: 18px; ma
   z-index: 1035;
 }
 .ambient-toggle.muted { color: #bbb; border-color: #ddd; }
+
+/* ============================================================
+   Stage layout (Theme 2) — dark, premium hero-dish presentation.
+   Everything below is scoped under body.theme-stage so it has zero
+   effect on the default card-list theme. Fonts (Cinzel/Montserrat/
+   Padauk) are injected by app.js only when this layout is actually
+   selected, not loaded for every store.
+   ============================================================ */
+body.theme-stage {
+  background: #0c0a0e;
+  color: #f3f4f6;
+}
+body.theme-stage .topbar {
+  background: rgba(12, 10, 14, 0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+body.theme-stage .brand { color: #f3f4f6; font-family: 'Cinzel', serif; letter-spacing: 0.03em; }
+body.theme-stage .table-badge { border-color: var(--accent); color: var(--accent); }
+
+body.theme-stage .category-pill {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #d1d5db;
+}
+body.theme-stage .category-pill.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+body.theme-stage .category-title { color: #f3f4f6; }
+
+body.theme-stage .product-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow: none;
+}
+body.theme-stage .product-card .card-title { color: #f3f4f6; font-family: 'Cinzel', serif; font-size: 0.9rem; }
+body.theme-stage .product-card .card-text { color: #9ca3af; }
+body.theme-stage .product-card .price { color: var(--accent); }
+
+body.theme-stage .cart-bar {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+
+body.theme-stage .modal-content,
+body.theme-stage .drawer,
+body.theme-stage .pm-body {
+  background: #14101a;
+  color: #f3f4f6;
+}
+body.theme-stage .pm-title { font-family: 'Cinzel', serif; }
+body.theme-stage .pm-desc { color: #9ca3af; }
+body.theme-stage .comment-input,
+body.theme-stage .qty-btn {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.12);
+  color: #f3f4f6;
+}
+body.theme-stage .payment-option {
+  background: rgba(255,255,255,0.03);
+  border-color: rgba(255,255,255,0.1);
+  color: #f3f4f6;
+}
+body.theme-stage .payment-option.selected { border-color: var(--accent); background: rgba(255,255,255,0.06); }
+body.theme-stage .line-item { border-color: rgba(255,255,255,0.08); }
+
+/* Hero stage */
+.stage-section {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 18px 16px;
+  background: linear-gradient(180deg, #120e16, #0c0a0e);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.stage-plate-wrap {
+  position: relative;
+  width: 130px;
+  height: 130px;
+  flex-shrink: 0;
+}
+.stage-shadow {
+  position: absolute;
+  bottom: -10px; left: 10%;
+  width: 80%; height: 16px;
+  background: rgba(0,0,0,0.6);
+  filter: blur(10px);
+  border-radius: 50%;
+}
+.stage-plate {
+  position: relative;
+  width: 100%; height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.6), inset 0 2px 8px rgba(255,255,255,0.05);
+}
+.stage-plate img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Lightweight CSS "steam" — two blurred, slowly drifting ellipses,
+   instead of a canvas particle simulation. Same ambient feel, a
+   fraction of the CPU/GPU cost, no per-frame JS. */
+.stage-steam {
+  position: absolute;
+  width: 46%; height: 30%;
+  background: rgba(255,255,255,0.5);
+  border-radius: 50%;
+  filter: blur(9px);
+  opacity: 0;
+  mix-blend-mode: screen;
+  animation: steamRise 4.5s ease-in infinite;
+}
+.stage-steam.s1 { left: 20%; bottom: 40%; animation-delay: 0s; }
+.stage-steam.s2 { left: 45%; bottom: 35%; animation-delay: 2.2s; }
+@keyframes steamRise {
+  0% { transform: translateY(0) scale(0.8); opacity: 0; }
+  25% { opacity: 0.35; }
+  100% { transform: translateY(-60px) scale(1.3); opacity: 0; }
+}
+
+.stage-hud { flex: 1; min-width: 0; }
+.stage-badge { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); font-weight: 700; margin-bottom: 4px; }
+.stage-title { font-family: 'Cinzel', serif; font-size: 1.05rem; color: #fff; margin-bottom: 4px; line-height: 1.3; }
+.stage-desc { font-size: 0.78rem; color: #9ca3af; margin-bottom: 8px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.stage-price {
+  font-size: 0.95rem; font-weight: 700; margin-bottom: 10px;
+  background: linear-gradient(135deg, #fce0ad, #dfb26c 50%, #b89742);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.stage-add-btn {
+  background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 9px 20px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.35);
+}

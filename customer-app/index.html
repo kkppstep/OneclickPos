@@ -18,7 +18,28 @@
   <nav class="category-nav" id="categoryNav"></nav>
 </header>
 
-<main id="menu" class="pb-5"></main>
+<!-- Stage layout hero (Theme 2) — hidden and unused unless the store's
+     theme.layout is 'stage'; toggled via applyTheme() in app.js -->
+<section id="stageSection" class="stage-section" hidden>
+  <div class="stage-plate-wrap">
+    <div class="stage-shadow"></div>
+    <div class="stage-plate">
+      <img id="stageImg" src="" alt="">
+      <div class="stage-steam s1"></div>
+      <div class="stage-steam s2"></div>
+    </div>
+  </div>
+  <div class="stage-hud">
+    <div class="stage-badge" id="stageBadge">Chef's Choice</div>
+    <div class="stage-title" id="stageTitle"></div>
+    <div class="stage-desc" id="stageDesc"></div>
+    <div class="stage-price" id="stagePrice"></div>
+    <button class="stage-add-btn" id="stageAddBtn">Add to order</button>
+  </div>
+</section>
+
+<main id="menu" class="pb-5">
+</main>
 
 <div class="state-message" id="loadingMessage">Loading menu…</div>
 
