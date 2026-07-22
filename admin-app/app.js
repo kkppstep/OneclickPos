@@ -905,6 +905,11 @@ async function tryGoogleSessionExchange() {
     persist('user', result.user);
     state.stores = result.stores.map((s) => ({ id: s.store_id, name: s.store_name, my_role: s.role }));
     await supa.auth.signOut(); // done with the Supabase session; our own JWT drives the app from here
+    
+    // Clean up OAuth tokens/hash fragments from browser URL bar
+    if (window.history && window.history.replaceState) {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
     return true;
   } catch (err) {
     console.error('[auth] google exchange failed:', err.message);
