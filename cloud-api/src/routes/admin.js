@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../db');
 const { authenticateUser } = require('../middleware/userAuth');
 const { requireStoreRole, requireTenantRole } = require('../middleware/roles');
+const { requireFeature } = require('../middleware/features');
 
 const router = express.Router();
 
@@ -182,7 +183,7 @@ router.get('/admin/orders', authenticateUser, requireStoreRole(['owner', 'manage
 // Live view -- open orders only, with items/notes/payment status
 // included, for the kitchen/staff order screen. Any assigned role can
 // view (not just owner/manager), since kitchen staff need this too.
-router.get('/admin/stores/:storeId/live-orders', authenticateUser, requireStoreRole(['owner', 'manager', 'cashier', 'kitchen_staff']), async (req, res) => {
+router.get('/admin/stores/:storeId/live-orders', authenticateUser, requireFeature('live_orders'), requireStoreRole(['owner', 'manager', 'cashier', 'kitchen_staff']), async (req, res) => {
   const ordersRes = await db.query(
     `SELECT id, table_number, channel, status, total, created_at
      FROM orders WHERE store_id = $1 AND status = 'open' ORDER BY created_at ASC`,

@@ -2,13 +2,14 @@ const express = require('express');
 const db = require('../db');
 const { authenticateUser } = require('../middleware/userAuth');
 const { requireStoreRole } = require('../middleware/roles');
+const { requireFeature } = require('../middleware/features');
 
 const router = express.Router();
 
 // GET /admin/stores/:storeId/analytics?days=7 — owner/manager only.
 // Voided and refunded orders are excluded throughout — they aren't
 // real completed sales, and counting them would overstate revenue.
-router.get('/admin/stores/:storeId/analytics', authenticateUser, requireStoreRole(['owner', 'manager']), async (req, res) => {
+router.get('/admin/stores/:storeId/analytics', authenticateUser, requireFeature('analytics'), requireStoreRole(['owner', 'manager']), async (req, res) => {
   const storeId = req.params.storeId;
   const days = Math.min(Math.max(Number(req.query.days) || 7, 1), 90);
 

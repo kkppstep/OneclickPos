@@ -7,13 +7,11 @@ const state = {
   token: localStorage.getItem('token') || '',
   user: JSON.parse(localStorage.getItem('user') || 'null'),
   tenant: null,
+  features: {}, // tenants.feature_overrides — which gated tabs this tenant can see, set by platform admin
   stores: [],
   categories: [],
   products: [],
   storeId: localStorage.getItem('storeId') || '',
-  platformToken: localStorage.getItem('platformToken') || '',
-  platformAdmin: JSON.parse(localStorage.getItem('platformAdmin') || 'null'),
-  isPlatformMode: false,
 };
 
 function persist(key, value) {
@@ -26,14 +24,18 @@ function logout() {
   state.token = '';
   state.user = null;
   state.storeId = '';
+  state.features = {};
+  document.querySelectorAll('.feature-nav-item').forEach((el) => { el.hidden = true; });
   switchTab('login');
 }
 
-function platformLogout() {
-  ['platformToken', 'platformAdmin'].forEach((k) => localStorage.removeItem(k));
-  state.platformToken = '';
-  state.platformAdmin = null;
-  switchTab('platformLogin');
+// Shows/hides sidebar tabs gated by tenant.feature_overrides. Also
+// checked server-side on the actual endpoints (cloud-api's
+// middleware/features.js) — this is convenience, not the real gate.
+function applyFeatureVisibility() {
+  document.querySelectorAll('.feature-nav-item').forEach((el) => {
+    el.hidden = state.features[el.dataset.feature] !== true;
+  });
 }
 
 // ============================================================
@@ -60,30 +62,6 @@ async function api(path, options = {}) {
   return res.json();
 }
 
-// Same shape as api(), but authenticated as the platform admin
-// (separate token/secret from tenant users — see cloud-api's
-// middleware/platformAdminAuth.js).
-async function platformApi(path, options = {}) {
-  const res = await fetch(`${state.apiBase}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(state.platformToken ? { Authorization: `Bearer ${state.platformToken}` } : {}),
-      ...options.headers,
-    },
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
-  if (res.status === 401) {
-    platformLogout();
-    throw new Error('Session expired — please log in again.');
-  }
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`${res.status} ${text}`);
-  }
-  return res.json();
-}
-
 // ============================================================
 // Navigation
 // ============================================================
@@ -99,19 +77,12 @@ const TABS = {
   liveOrders: renderLiveOrders,
   orders: renderOrders,
   analytics: renderAnalytics,
-  platformLogin: renderPlatformLogin,
-  platformTenants: renderPlatformTenants,
-  platformPlans: renderPlatformPlans,
 };
 
 let liveOrdersInterval = null;
 
 function switchTab(tab) {
-  if (state.isPlatformMode) {
-    if (tab !== 'platformLogin' && !state.platformToken) tab = 'platformLogin';
-  } else if (tab !== 'login' && !state.token) {
-    tab = 'login';
-  }
+  if (tab !== 'login' && !state.token) tab = 'login';
   if (liveOrdersInterval) { clearInterval(liveOrdersInterval); liveOrdersInterval = null; }
   document.querySelectorAll('.nav-item').forEach((el) => el.classList.toggle('active', el.dataset.tab === tab));
   updateContextBar();
@@ -120,23 +91,7 @@ function switchTab(tab) {
 
 document.querySelectorAll('.nav-item[data-tab]').forEach((el) => el.addEventListener('click', () => switchTab(el.dataset.tab)));
 
-document.getElementById('platformModeToggle').addEventListener('click', () => {
-  state.isPlatformMode = !state.isPlatformMode;
-  document.querySelectorAll('.owner-nav-item').forEach((el) => { el.hidden = state.isPlatformMode; });
-  document.querySelectorAll('.platform-nav-item').forEach((el) => { el.hidden = !state.isPlatformMode; });
-  document.getElementById('platformModeToggle').textContent = state.isPlatformMode ? '\u2699 Back to shop admin' : '\u2699 Platform admin';
-  switchTab(state.isPlatformMode ? 'platformLogin' : 'login');
-});
-
 function updateContextBar() {
-  if (state.isPlatformMode) {
-    document.getElementById('contextBar').innerHTML = state.platformAdmin ? `
-      ${escapeHtml(state.platformAdmin.email)} (platform)<br>
-      <a href="#" id="platformLogoutLink" style="color:var(--gold)">Log out</a>
-    ` : '';
-    document.getElementById('platformLogoutLink')?.addEventListener('click', (e) => { e.preventDefault(); platformLogout(); });
-    return;
-  }
   const store = state.stores.find((s) => s.id === state.storeId);
   document.getElementById('contextBar').innerHTML = state.user ? `
     ${escapeHtml(state.user.email)}<br>
@@ -303,6 +258,7 @@ function renderLogin() {
       persist('user', data.user);
       state.stores = data.stores.map((s) => ({ id: s.store_id, name: s.store_name, my_role: s.role }));
       resultEl.innerHTML = `<span style="color:#2C5A28">Logged in as ${escapeHtml(data.user.email)}.</span>`;
+      await loadTenantFeatures();
       switchTab('business');
     } catch (err) {
       resultEl.innerHTML = `<span style="color:#A6301F">${escapeHtml(err.message)}</span>`;
@@ -313,16 +269,36 @@ function renderLogin() {
 // ============================================================
 // Business (read-only tenant info)
 // ============================================================
+// Called right after any successful login (password or Google) so the
+// sidebar reflects the tenant's enabled features immediately, without
+// waiting for the user to visit the Business tab first.
+async function loadTenantFeatures() {
+  try {
+    const tenant = await api('/admin/tenants/me');
+    state.tenant = tenant;
+    state.features = tenant.feature_overrides || {};
+    applyFeatureVisibility();
+  } catch (err) {
+    console.error('[features] failed to load tenant features:', err.message);
+  }
+}
+
 async function renderBusiness() {
   setContent(`<h1>Business</h1><div id="bizInfo">Loading…</div>`);
   try {
     const tenant = await api('/admin/tenants/me');
     state.tenant = tenant;
+    state.features = tenant.feature_overrides || {};
+    applyFeatureVisibility();
+    const enabledFeatures = Object.entries(state.features).filter(([, v]) => v === true).map(([k]) => k);
     document.getElementById('bizInfo').innerHTML = `
       <div class="card">
         <div class="field"><label>Name</label><div>${escapeHtml(tenant.business_name)}</div></div>
         <div class="field"><label>Contact email</label><div>${escapeHtml(tenant.contact_email || '—')}</div></div>
         <div class="field"><label>Subscription status</label><div>${escapeHtml(tenant.subscription_status)}</div></div>
+        <div class="field"><label>Enabled features</label><div>${
+          enabledFeatures.length ? enabledFeatures.map((f) => `<span class="pill synced" style="margin-right:4px;">${escapeHtml(f)}</span>`).join('') : '<span class="state-message" style="padding:0;">None yet — contact the platform operator to enable extra features.</span>'
+        }</div></div>
       </div>
     `;
   } catch (err) {
@@ -652,6 +628,7 @@ function renderQrCodes() {
 // Staff
 // ============================================================
 async function renderStaff() {
+  if (state.features.staff_management !== true) { setContent(`<h1>Staff</h1><div class="state-message">This feature isn't enabled for your account yet. Contact the platform operator.</div>`); return; }
   if (!state.storeId) { setContent(`<h1>Staff</h1><div class="state-message">Select a store first.</div>`); return; }
   setContent(`
     <h1>Staff</h1>
@@ -720,6 +697,7 @@ async function renderStaffTable() {
 // Live orders — the kitchen/staff working view. Polls every 5s.
 // ============================================================
 async function renderLiveOrders() {
+  if (state.features.live_orders !== true) { setContent(`<h1>Live orders</h1><div class="state-message">This feature isn't enabled for your account yet. Contact the platform operator.</div>`); return; }
   if (!state.storeId) { setContent(`<h1>Live orders</h1><div class="state-message">Select a store first.</div>`); return; }
   setContent(`<h1>Live orders</h1><div class="subtitle">Refreshes automatically.</div><div id="liveOrdersList">Loading…</div>`);
 
@@ -787,6 +765,7 @@ function renderLiveOrdersList(orders) {
 // Analytics — daily revenue and best sellers
 // ============================================================
 async function renderAnalytics(days = 7) {
+  if (state.features.analytics !== true) { setContent(`<h1>Analytics</h1><div class="state-message">This feature isn't enabled for your account yet. Contact the platform operator.</div>`); return; }
   if (!state.storeId) { setContent(`<h1>Analytics</h1><div class="state-message">Select a store first.</div>`); return; }
 
   setContent(`
@@ -893,126 +872,6 @@ async function renderOrders() {
 }
 
 // ============================================================
-// Platform admin — separate mode, separate auth, separate token.
-// ============================================================
-function renderPlatformLogin() {
-  setContent(`
-    <h1>Platform admin</h1>
-    <div class="subtitle">Operator-only. Not for shop owners or staff.</div>
-    <div class="card" style="max-width:420px;">
-      <div class="field"><label>Email</label><input id="platformLoginEmail"></div>
-      <div class="field"><label>Password</label><input id="platformLoginPassword" type="password"></div>
-      <button class="btn" id="platformLoginBtn">Log in</button>
-      <div id="platformLoginResult" style="margin-top:12px;"></div>
-      <div class="subtitle" style="margin-top:16px;">No account yet? Platform admins are created directly via SQL, not through this app — see the root README.</div>
-    </div>
-  `);
-
-  document.getElementById('platformLoginBtn').addEventListener('click', async () => {
-    const resultEl = document.getElementById('platformLoginResult');
-    try {
-      const data = await fetch(`${state.apiBase}/platform/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: document.getElementById('platformLoginEmail').value.trim(),
-          password: document.getElementById('platformLoginPassword').value,
-        }),
-      }).then(async (res) => { if (!res.ok) throw new Error(await res.text()); return res.json(); });
-
-      persist('platformToken', data.token);
-      persist('platformAdmin', data.admin);
-      switchTab('platformTenants');
-    } catch (err) {
-      resultEl.innerHTML = `<span style="color:#A6301F">${escapeHtml(err.message)}</span>`;
-    }
-  });
-}
-
-async function renderPlatformTenants() {
-  setContent(`<h1>Tenants</h1><div class="subtitle">Every business on the platform.</div><div id="tenantsList">Loading…</div>`);
-
-  const STATUS_OPTIONS = ['trial', 'active', 'past_due', 'suspended', 'cancelled'];
-
-  try {
-    const data = await platformApi('/platform/tenants');
-    const listEl = document.getElementById('tenantsList');
-    listEl.innerHTML = data.tenants.map((t) => `
-      <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:start;">
-          <div>
-            <div style="font-weight:700;">${escapeHtml(t.business_name)}</div>
-            <div style="font-size:0.8rem;color:var(--text-muted);">${t.store_count} store(s) — ${escapeHtml(t.contact_email || 'no contact email')}</div>
-          </div>
-          <span class="pill ${t.subscription_status === 'active' ? 'synced' : t.subscription_status === 'trial' ? 'pending' : ''}">${escapeHtml(t.subscription_status)}</span>
-        </div>
-        <div style="display:flex;gap:8px;margin-top:12px;align-items:center;">
-          <select id="statusSelect-${t.id}">
-            ${STATUS_OPTIONS.map((s) => `<option value="${s}" ${s === t.subscription_status ? 'selected' : ''}>${s}</option>`).join('')}
-          </select>
-          <button class="btn secondary save-tenant-status" data-id="${t.id}">Save</button>
-          ${t.subscription_expires_at ? `<span style="font-size:0.78rem;color:var(--text-muted);">expires ${new Date(t.subscription_expires_at).toLocaleDateString()}</span>` : ''}
-        </div>
-      </div>
-    `).join('');
-
-    listEl.querySelectorAll('.save-tenant-status').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const status = document.getElementById(`statusSelect-${btn.dataset.id}`).value;
-        await platformApi(`/platform/tenants/${btn.dataset.id}`, { method: 'PATCH', body: { subscription_status: status } });
-        renderPlatformTenants();
-      });
-    });
-  } catch (err) {
-    document.getElementById('tenantsList').innerHTML = `<div class="state-message error">${escapeHtml(err.message)}</div>`;
-  }
-}
-
-async function renderPlatformPlans() {
-  setContent(`
-    <h1>Subscription plans</h1>
-    <div class="card">
-      <div class="field"><label>Name</label><input id="planName"></div>
-      <div class="field"><label>Price (MMK)</label><input id="planPrice" type="number"></div>
-      <div class="field"><label>Billing cycle</label>
-        <select id="planCycle"><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select>
-      </div>
-      <div class="field"><label>Max stores (blank = unlimited)</label><input id="planMaxStores" type="number"></div>
-      <button class="btn" id="createPlanBtn">Add plan</button>
-    </div>
-    <div id="plansList">Loading…</div>
-  `);
-
-  document.getElementById('createPlanBtn').addEventListener('click', async () => {
-    const name = document.getElementById('planName').value.trim();
-    const price_mmk = Number(document.getElementById('planPrice').value);
-    if (!name || !price_mmk) return;
-    await platformApi('/platform/plans', {
-      method: 'POST',
-      body: {
-        name, price_mmk,
-        billing_cycle: document.getElementById('planCycle').value,
-        max_stores: document.getElementById('planMaxStores').value ? Number(document.getElementById('planMaxStores').value) : null,
-      },
-    });
-    renderPlatformPlans();
-  });
-
-  try {
-    const data = await platformApi('/platform/plans');
-    document.getElementById('plansList').innerHTML = data.plans.length === 0
-      ? `<div class="state-message">No plans yet.</div>`
-      : `<table><thead><tr><th>Name</th><th>Price</th><th>Cycle</th><th>Max stores</th></tr></thead><tbody>${
-          data.plans.map((p) => `
-            <tr><td>${escapeHtml(p.name)}</td><td>${Number(p.price_mmk).toLocaleString()} MMK</td><td>${escapeHtml(p.billing_cycle)}</td><td>${p.max_stores ?? 'Unlimited'}</td></tr>
-          `).join('')
-        }</tbody></table>`;
-  } catch (err) {
-    document.getElementById('plansList').innerHTML = `<div class="state-message error">${escapeHtml(err.message)}</div>`;
-  }
-}
-
-// ============================================================
 // Google sign-in (Supabase Auth) plumbing
 // ============================================================
 let _supabaseClient;
@@ -1061,6 +920,7 @@ async function boot() {
     try {
       const data = await api('/admin/stores');
       state.stores = data.stores;
+      await loadTenantFeatures();
       switchTab('business');
       return;
     } catch (err) {
@@ -1070,6 +930,7 @@ async function boot() {
 
   const exchanged = await tryGoogleSessionExchange();
   if (exchanged) {
+    await loadTenantFeatures();
     switchTab('business');
     return;
   }

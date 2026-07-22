@@ -28,6 +28,13 @@ CREATE TABLE tenants (
     subscription_status TEXT NOT NULL DEFAULT 'trial'
         CHECK (subscription_status IN ('trial','active','past_due','suspended','cancelled')),
     subscription_expires_at TIMESTAMPTZ,
+    -- Per-tenant feature permissions, set by the platform admin — e.g.
+    -- {"live_orders": true, "analytics": false, "staff_management": true}.
+    -- Missing key = locked by default. Checked by cloud-api's
+    -- middleware/features.js on both the sidebar (owner UI) and the
+    -- actual API endpoints, so this isn't just a hidden button — the
+    -- backend enforces it too.
+    feature_overrides JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -52,6 +59,8 @@ CREATE TABLE stores (
     kbzpay_qr_url TEXT,   -- static KBZPay QR image shown at customer checkout; NULL = not offered
     ambient_audio_url TEXT,          -- small looping audio file played while browsing the menu
     ambient_audio_enabled BOOLEAN NOT NULL DEFAULT false,
+    -- { preset: 'green'|'cozy'|'ice'|'custom', primary_color, background_image_url, gradient_from, gradient_to }
+    theme_config JSONB NOT NULL DEFAULT '{"preset": "green"}'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -113,10 +122,32 @@ CREATE TABLE users (
     name TEXT NOT NULL,
     email TEXT,
     phone TEXT,
-    password_hash TEXT NOT NULL,
-    pin_code_hash TEXT,            -- fast PIN login at the terminal
+    -- NULL for Google-authenticated owners (see auth_provider) — they
+    -- have no password in our system, Google is their identity.
+    password_hash TEXT,
+    auth_provider TEXT NOT NULL DEFAULT 'password' CHECK (auth_provider IN ('password', 'google')),
+    auth_provider_id TEXT,          -- Supabase auth user id, for Google accounts
+    -- Individual account control, separate from tenant-wide
+    -- subscription_status — platform admin can deactivate one person
+    -- without suspending the whole business. Also settable by an
+    -- owner for their own staff (not yet exposed in admin-app; see
+    -- cloud-api README).
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    pin_code_hash TEXT,           -- fast PIN login at the terminal
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (tenant_id, email)
+);
+CREATE INDEX idx_users_auth_provider_id ON users (auth_provider_id) WHERE auth_provider_id IS NOT NULL;
+
+-- Platform operator accounts — deliberately separate from tenant
+-- `users`. Bootstrapped once via PLATFORM_API_KEY (see
+-- POST /platform/admins), logged into normally after that.
+CREATE TABLE platform_admins (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE store_users (

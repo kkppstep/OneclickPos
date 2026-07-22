@@ -46,8 +46,10 @@ restricting to your actual deployed domains before going live.
   baked into the token, so revoking someone's access takes effect
   immediately — see `src/middleware/userAuth.js` and
   `src/middleware/roles.js`. This middleware also blocks the request
-  entirely (`402`) if the tenant's `subscription_status` is
-  `suspended` or `cancelled`.
+  entirely if the tenant's `subscription_status` is `suspended`/
+  `cancelled` (`402`), or if that specific user's `is_active` is false
+  (`403`) — a platform admin can deactivate one account without
+  suspending the whole tenant.
 - **Platform-admin auth** — real accounts for you, the platform
   operator, separate from tenant `users` (`platform_admins` table,
   own JWT secret `PLATFORM_JWT_SECRET` — never interchangeable with a
@@ -56,6 +58,18 @@ restricting to your actual deployed domains before going live.
   you insert the row directly via SQL (see `create-platform-admin.sql`
   in the project root, uses pgcrypto to bcrypt-hash the password in the
   same INSERT). One less credential (a shared bootstrap key) to leak.
+  The platform-admin UI lives at `admin-app/platform/` — a genuinely
+  separate page (own `index.html`/`platform.js`), not a mode toggle
+  inside the shop-owner app, and not linked from it anywhere.
+- **Feature permissions** — `tenants.feature_overrides` (JSONB, e.g.
+  `{"live_orders": true, "analytics": false}`) gates both the owner
+  sidebar's tabs AND the underlying endpoints
+  (`src/middleware/features.js`'s `requireFeature(key)`), currently
+  applied to Live Orders, Analytics, and Staff management. A missing
+  key defaults to locked — new tenants start with none of these until
+  a platform admin turns them on. This is separate from and simpler
+  than `subscription_plans.features`, which is descriptive/billing
+  data only and isn't enforced anywhere.
 
 ## Endpoints
 
@@ -74,13 +88,21 @@ restricting to your actual deployed domains before going live.
   counts, for the operator's overview.
 - `PATCH /platform/tenants/:id` — platform-admin. Change
   `subscription_status`/`subscription_plan_id`/`subscription_expires_at`
-  — this is what has real teeth, since `authenticateUser` checks
-  status on every tenant-user request.
+  and/or `feature_overrides` — the latter is what actually gates the
+  owner's Live Orders/Analytics/Staff tabs and endpoints.
+- `GET /platform/features` — platform-admin. The canonical list of
+  gate-able feature keys, so the UI doesn't hardcode a duplicate list.
+- `GET /platform/tenants/:id/users` — platform-admin. Every user under
+  one tenant, with their store roles and `is_active` status.
+- `PATCH /platform/users/:id` — platform-admin. `{ is_active?,
+  new_password? }` — deactivate one specific account, or reset its
+  password as an emergency access grant (works even for a Google-only
+  account; doesn't change their normal sign-in method, just adds a
+  password as a fallback).
 - `/platform/plans` (GET/POST/PATCH) — platform-admin. CRUD for
-  `subscription_plans`, including a free-form `features` JSONB bag.
-  **Not yet enforced** — defining what a plan includes doesn't
-  currently restrict what a tenant on that plan can do; see
-  "not yet implemented" below.
+  `subscription_plans` — descriptive/billing data (price, cycle, max
+  stores), separate from and NOT the same as `feature_overrides`. See
+  the auth section above for why these are kept apart.
 - `GET /admin/tenants/me` — user-authenticated. The caller's own tenant.
 - `/admin/stores`, `/admin/categories`, `/admin/products` — user-
   authenticated CRUD, scoped to the caller's own tenant. Category/
@@ -152,14 +174,14 @@ comment in `src/db.js`.
 
 ## Not yet implemented (next steps)
 
-- **Subscription plan feature enforcement** — `subscription_plans.features`
-  is stored (JSONB) and editable via `/platform/plans`, and a tenant
-  can be assigned a plan, but nothing actually reads those flags to
-  restrict what a tenant can do. The data model and admin UI exist;
-  the enforcement layer doesn't yet.
-- Password reset / self-service invite flow — an owner sets a staff
-  member's initial password directly right now rather than sending an
-  invite link.
+- Password reset / self-service invite flow for staff — an owner sets
+  a staff member's initial password directly right now rather than
+  sending an invite link. (Platform admin resetting any account's
+  password is built — see `PATCH /platform/users/:id` — this gap is
+  specifically about owner-initiated staff invites.)
+- `max_stores`/`max_terminals_per_store` on `subscription_plans` are
+  stored but not enforced — a tenant can create more stores than their
+  assigned plan allows.
 - Rate limiting on the two public endpoints.
 - Order edits and refund handling beyond a plain status change to
   `refunded` — no partial refunds or line-item edits yet.

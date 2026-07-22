@@ -9,9 +9,11 @@ const db = require('../db');
 // someone's access takes effect immediately rather than waiting for
 // their token to expire.
 //
-// Also checks the tenant's subscription_status on every request — a
-// suspended/cancelled tenant is actually blocked, not just flagged in
-// a column nobody reads.
+// Also checks, on every request: the tenant's subscription_status
+// (suspended/cancelled tenants are blocked entirely — not just a
+// column nobody reads) and the individual user's is_active flag
+// (lets a platform admin deactivate one specific account without
+// touching the rest of the tenant).
 async function authenticateUser(req, res, next) {
   const authHeader = req.headers.authorization || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
@@ -25,14 +27,24 @@ async function authenticateUser(req, res, next) {
   }
 
   try {
-    const tenantRes = await db.query('SELECT subscription_status FROM tenants WHERE id = $1', [payload.tenant_id]);
-    const status = tenantRes.rows[0]?.subscription_status;
-    if (status === 'suspended' || status === 'cancelled') {
-      return res.status(402).json({ error: 'subscription_inactive', subscription_status: status });
+    const res1 = await db.query(
+      `SELECT t.subscription_status, u.is_active
+       FROM tenants t
+       JOIN users u ON u.tenant_id = t.id
+       WHERE t.id = $1 AND u.id = $2`,
+      [payload.tenant_id, payload.sub]
+    );
+    const row = res1.rows[0];
+    if (!row) return res.status(401).json({ error: 'account_not_found' });
+    if (row.subscription_status === 'suspended' || row.subscription_status === 'cancelled') {
+      return res.status(402).json({ error: 'subscription_inactive', subscription_status: row.subscription_status });
+    }
+    if (!row.is_active) {
+      return res.status(403).json({ error: 'account_deactivated' });
     }
   } catch (err) {
-    console.error('[auth] tenant status check failed:', err.message);
-    return res.status(500).json({ error: 'tenant_status_check_failed' });
+    console.error('[auth] status check failed:', err.message);
+    return res.status(500).json({ error: 'status_check_failed' });
   }
 
   req.user = { id: payload.sub, tenant_id: payload.tenant_id };

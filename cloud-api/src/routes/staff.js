@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const db = require('../db');
 const { authenticateUser } = require('../middleware/userAuth');
 const { requireStoreRole } = require('../middleware/roles');
+const { requireFeature } = require('../middleware/features');
 
 const router = express.Router();
 
@@ -16,7 +17,7 @@ const INVITABLE_ROLES = ['manager', 'cashier', 'kitchen_staff'];
 //
 // No invite-link/reset-password flow yet — the owner sets an initial
 // password directly and shares it with the staff member out of band.
-router.post('/admin/stores/:storeId/staff', authenticateUser, requireStoreRole(['owner']), async (req, res) => {
+router.post('/admin/stores/:storeId/staff', authenticateUser, requireFeature('staff_management'), requireStoreRole(['owner']), async (req, res) => {
   const { name, email, password, role } = req.body;
   if (!name || !email || !password || !INVITABLE_ROLES.includes(role)) {
     return res.status(400).json({ error: 'name_email_password_and_valid_role_required' });
@@ -63,7 +64,7 @@ router.post('/admin/stores/:storeId/staff', authenticateUser, requireStoreRole([
 });
 
 // GET /admin/stores/:storeId/staff — owner or manager can view who has access.
-router.get('/admin/stores/:storeId/staff', authenticateUser, requireStoreRole(['owner', 'manager']), async (req, res) => {
+router.get('/admin/stores/:storeId/staff', authenticateUser, requireFeature('staff_management'), requireStoreRole(['owner', 'manager']), async (req, res) => {
   const { rows } = await db.query(
     `SELECT u.id, u.name, u.email, su.role
      FROM store_users su JOIN users u ON u.id = su.user_id
@@ -76,7 +77,7 @@ router.get('/admin/stores/:storeId/staff', authenticateUser, requireStoreRole(['
 // DELETE /admin/stores/:storeId/staff/:userId — owner-only. Removes
 // this person's access to this specific store; doesn't touch their
 // access at any other store or delete their user account.
-router.delete('/admin/stores/:storeId/staff/:userId', authenticateUser, requireStoreRole(['owner']), async (req, res) => {
+router.delete('/admin/stores/:storeId/staff/:userId', authenticateUser, requireFeature('staff_management'), requireStoreRole(['owner']), async (req, res) => {
   const { rows } = await db.query(
     `DELETE FROM store_users WHERE store_id = $1 AND user_id = $2 AND role != 'owner' RETURNING id`,
     [req.params.storeId, req.params.userId]
