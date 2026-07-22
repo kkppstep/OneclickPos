@@ -87,8 +87,9 @@ function renderLogin() {
   `);
 
   document.getElementById('loginBtn').addEventListener('click', async () => {
-    persist('platformApiBase', document.getElementById('apiBaseInput').value.replace(/\/$/, ''));
-    state.apiBase = state.platformApiBase;
+    const cleanUrl = document.getElementById('apiBaseInput').value.replace(/\/$/, '');
+    persist('platformApiBase', cleanUrl);
+    state.apiBase = cleanUrl;
     const resultEl = document.getElementById('loginResult');
     try {
       const data = await api('/platform/auth/login', {
