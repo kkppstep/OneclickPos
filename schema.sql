@@ -57,6 +57,7 @@ CREATE TABLE stores (
     retry_count INT NOT NULL DEFAULT 2,
     retry_backoff_ms INT NOT NULL DEFAULT 1000,
     kbzpay_qr_url TEXT,   -- static KBZPay QR image shown at customer checkout; NULL = not offered
+    logo_url TEXT,        -- shown in the customer app's header and admin-app's context
     ambient_audio_url TEXT,          -- small looping audio file played while browsing the menu
     ambient_audio_enabled BOOLEAN NOT NULL DEFAULT false,
     -- { preset: 'green'|'cozy'|'ice'|'custom', primary_color, background_image_url, gradient_from, gradient_to }

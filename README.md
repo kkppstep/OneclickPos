@@ -38,7 +38,7 @@ sign-in won't work and will fail without an obvious reason why.
 
 2. **`cloud-api`** — `vercel deploy` from inside `cloud-api/`. Set
    `DATABASE_URL`, `JWT_SECRET`, `PLATFORM_JWT_SECRET`, `SUPABASE_URL`,
-   `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_JWT_SECRET` as environment
+   `SUPABASE_SERVICE_ROLE_KEY` as environment
    variables in the Vercel project. Note the deployed URL.
 
 3. **`admin-app`** — `vercel deploy` from inside `admin-app/`. In that

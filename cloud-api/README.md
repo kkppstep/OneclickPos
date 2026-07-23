@@ -77,10 +77,14 @@ restricting to your actual deployed domains before going live.
 - `POST /auth/login` — public. `{ email, password }` → JWT + the list
   of stores that user has a role at.
 - `POST /auth/google-exchange` — public. `{ supabase_access_token }` →
-  same response shape as `/auth/login`. Verifies the token locally
-  against `SUPABASE_JWT_SECRET`; creates a new tenant + owner on a
-  first-time sign-in (placeholder business name, renamed from the
-  Business tab afterward), or logs in an existing one.
+  same response shape as `/auth/login`. Verifies the token by calling
+  Supabase's own Auth server (`supabase.auth.getUser()`) rather than
+  decoding it locally with a shared secret — this works regardless of
+  whether the Supabase project uses the legacy shared-secret (HS256)
+  or newer asymmetric signing keys, and needs no `SUPABASE_JWT_SECRET`
+  env var. Creates a new tenant + owner on a first-time sign-in
+  (placeholder business name, renamed from the Business tab
+  afterward), or logs in an existing one.
 - `POST /platform/auth/login` — public. `{ email, password }` → a
   platform-admin JWT (separate token type from tenant users). No
   corresponding create-account endpoint — see `create-platform-admin.sql`.
@@ -167,7 +171,7 @@ vercel deploy
 re-exports the same Express app used for local dev (`src/app.js`) — no
 duplicate route definitions to maintain. Set `DATABASE_URL`,
 `JWT_SECRET`, `PLATFORM_JWT_SECRET`, `SUPABASE_URL`,
-`SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_JWT_SECRET` as Vercel
+`SUPABASE_SERVICE_ROLE_KEY` as Vercel
 environment variables. Use a connection pooler (e.g. Supabase or
 Neon's pgbouncer endpoint) for `DATABASE_URL` in production — see the
 comment in `src/db.js`.

@@ -2,30 +2,33 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const db = require('../db');
 const config = require('../config');
+const supabase = require('../lib/supabaseClient');
 
 const router = express.Router();
 
 // POST /auth/google-exchange — the browser signs in with Google via
 // Supabase Auth client-side (admin-app), then hands us that Supabase
-// access token here. We verify it locally against Supabase's JWT
-// secret (no extra network round-trip), then either log in an
-// existing owner or create a brand-new tenant for a first-time
-// Google sign-in — one click, no separate "create business" form.
+// access token here. We verify it by asking Supabase's own Auth
+// server (supabase.auth.getUser()) rather than decoding the JWT
+// locally with a shared secret — Supabase has been moving projects
+// from a shared HS256 secret to asymmetric signing keys, and a local
+// shared-secret check silently fails against a token signed the new
+// way. Asking the Auth server directly works regardless of which
+// signing method the project uses, at the cost of one extra network
+// call on login (infrequent, so the tradeoff is fine).
 router.post('/auth/google-exchange', async (req, res) => {
   const { supabase_access_token } = req.body;
   if (!supabase_access_token) return res.status(400).json({ error: 'supabase_access_token_required' });
-  if (!config.supabaseJwtSecret) return res.status(500).json({ error: 'supabase_jwt_secret_not_configured' });
 
-  let supabasePayload;
-  try {
-    supabasePayload = jwt.verify(supabase_access_token, config.supabaseJwtSecret);
-  } catch (err) {
+  const { data, error } = await supabase.auth.getUser(supabase_access_token);
+  if (error || !data?.user) {
+    console.error('[auth] supabase token verification failed:', error?.message);
     return res.status(401).json({ error: 'invalid_supabase_token' });
   }
 
-  const googleEmail = supabasePayload.email;
-  const googleSub = supabasePayload.sub;
-  const googleName = supabasePayload.user_metadata?.full_name || supabasePayload.user_metadata?.name || googleEmail;
+  const googleEmail = data.user.email;
+  const googleSub = data.user.id;
+  const googleName = data.user.user_metadata?.full_name || data.user.user_metadata?.name || googleEmail;
   if (!googleEmail) return res.status(400).json({ error: 'google_account_has_no_email' });
 
   const client = await db.pool.connect();

@@ -10,7 +10,6 @@ module.exports = {
   platformJwtSecret: process.env.PLATFORM_JWT_SECRET || 'dev-platform-secret-change-me',
   // Used to verify tokens issued by Supabase Auth (Google sign-in) —
   // Supabase dashboard -> Settings -> API -> JWT Secret.
-  supabaseJwtSecret: process.env.SUPABASE_JWT_SECRET || '',
   supabaseUrl: process.env.SUPABASE_URL || '',
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
 };

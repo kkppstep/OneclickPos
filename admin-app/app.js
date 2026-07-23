@@ -893,11 +893,11 @@ function getSupabaseClient() {
 // email/password login from there on).
 async function tryGoogleSessionExchange() {
   const supa = getSupabaseClient();
-  if (!supa) return false;
+  if (!supa) return { ok: false };
 
   const { data } = await supa.auth.getSession();
   const accessToken = data?.session?.access_token;
-  if (!accessToken) return false;
+  if (!accessToken) return { ok: false }; // not returning from a Google redirect — normal case, not an error
 
   try {
     const result = await api('/auth/google-exchange', { method: 'POST', body: { supabase_access_token: accessToken } });
@@ -905,15 +905,10 @@ async function tryGoogleSessionExchange() {
     persist('user', result.user);
     state.stores = result.stores.map((s) => ({ id: s.store_id, name: s.store_name, my_role: s.role }));
     await supa.auth.signOut(); // done with the Supabase session; our own JWT drives the app from here
-    
-    // Clean up OAuth tokens/hash fragments from browser URL bar
-    if (window.history && window.history.replaceState) {
-      window.history.replaceState(null, '', window.location.pathname);
-    }
-    return true;
+    return { ok: true };
   } catch (err) {
     console.error('[auth] google exchange failed:', err.message);
-    return false;
+    return { ok: false, error: err.message };
   }
 }
 
@@ -933,13 +928,21 @@ async function boot() {
     }
   }
 
-  const exchanged = await tryGoogleSessionExchange();
-  if (exchanged) {
+  const result = await tryGoogleSessionExchange();
+  if (result.ok) {
     await loadTenantFeatures();
     switchTab('business');
     return;
   }
 
+  switchTab('login');
+  // Surfaced only if a Google sign-in actually happened and failed —
+  // never shown on a plain first visit, since result.error is only
+  // set inside the catch block above.
+  if (result.error) {
+    const resultEl = document.getElementById('loginResult');
+    if (resultEl) resultEl.innerHTML = `<span style="color:#A6301F">Google sign-in failed: ${escapeHtml(result.error)}</span>`;
+  }
   switchTab('login');
 }
 

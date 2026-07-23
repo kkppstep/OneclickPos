@@ -17,21 +17,42 @@ router.get('/admin/tenants/me', authenticateUser, async (req, res) => {
   res.json(rows[0]);
 });
 
+// PATCH /admin/tenants/me — an owner renaming their own business.
+// Deliberately narrow: only business_name/contact_email/contact_phone.
+// subscription_status, subscription_plan_id, and feature_overrides
+// stay platform-admin-only (see /platform/tenants/:id) — an owner
+// can't grant themselves features or reactivate a suspended account
+// through this endpoint.
+router.patch('/admin/tenants/me', authenticateUser, async (req, res) => {
+  const { business_name, contact_email, contact_phone } = req.body;
+  const { rows } = await db.query(
+    `UPDATE tenants SET
+       business_name = COALESCE($2, business_name),
+       contact_email = COALESCE($3, contact_email),
+       contact_phone = COALESCE($4, contact_phone),
+       updated_at = now()
+     WHERE id = $1 RETURNING *`,
+    [req.user.tenant_id, business_name || null, contact_email || null, contact_phone || null]
+  );
+  if (rows.length === 0) return res.status(404).json({ error: 'tenant_not_found' });
+  res.json(rows[0]);
+});
+
 // ---------- Stores ----------
 // Creating a store just requires being logged in; the creator becomes
 // its 'owner' in store_users automatically.
 router.post('/admin/stores', authenticateUser, async (req, res) => {
-  const { name, address, township, region_state, kbzpay_qr_url, ambient_audio_url, ambient_audio_enabled, theme_config } = req.body;
+  const { name, address, township, region_state, logo_url, kbzpay_qr_url, ambient_audio_url, ambient_audio_enabled, theme_config } = req.body;
   if (!name) return res.status(400).json({ error: 'name_required' });
 
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
     const storeRes = await client.query(
-      `INSERT INTO stores (id, tenant_id, name, address, township, region_state, kbzpay_qr_url, ambient_audio_url, ambient_audio_enabled, theme_config)
-       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, '{"preset":"green"}'::jsonb)) RETURNING *`,
+      `INSERT INTO stores (id, tenant_id, name, address, township, region_state, logo_url, kbzpay_qr_url, ambient_audio_url, ambient_audio_enabled, theme_config)
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, '{"preset":"green"}'::jsonb)) RETURNING *`,
       [
-        req.user.tenant_id, name, address || null, township || null, region_state || null,
+        req.user.tenant_id, name, address || null, township || null, region_state || null, logo_url || null,
         kbzpay_qr_url || null, ambient_audio_url || null, ambient_audio_enabled || false,
         theme_config ? JSON.stringify(theme_config) : null,
       ]
@@ -52,20 +73,22 @@ router.post('/admin/stores', authenticateUser, async (req, res) => {
 });
 
 // PATCH /admin/stores/:storeId — owner/manager. Covers the settings
-// most likely to change after initial setup (payment QR, ambient
-// audio, menu theme) without needing a full store-recreation flow.
+// most likely to change after initial setup (logo, payment QR,
+// ambient audio, menu theme) without needing a full store-recreation
+// flow.
 router.patch('/admin/stores/:storeId', authenticateUser, requireStoreRole(['owner', 'manager']), async (req, res) => {
-  const { name, kbzpay_qr_url, ambient_audio_url, ambient_audio_enabled, theme_config } = req.body;
+  const { name, logo_url, kbzpay_qr_url, ambient_audio_url, ambient_audio_enabled, theme_config } = req.body;
   const { rows } = await db.query(
     `UPDATE stores SET
        name = COALESCE($2, name),
-       kbzpay_qr_url = COALESCE($3, kbzpay_qr_url),
-       ambient_audio_url = COALESCE($4, ambient_audio_url),
-       ambient_audio_enabled = COALESCE($5, ambient_audio_enabled),
-       theme_config = COALESCE($6, theme_config),
+       logo_url = COALESCE($3, logo_url),
+       kbzpay_qr_url = COALESCE($4, kbzpay_qr_url),
+       ambient_audio_url = COALESCE($5, ambient_audio_url),
+       ambient_audio_enabled = COALESCE($6, ambient_audio_enabled),
+       theme_config = COALESCE($7, theme_config),
        updated_at = now()
      WHERE id = $1 RETURNING *`,
-    [req.params.storeId, name, kbzpay_qr_url, ambient_audio_url, ambient_audio_enabled, theme_config ? JSON.stringify(theme_config) : null]
+    [req.params.storeId, name, logo_url, kbzpay_qr_url, ambient_audio_url, ambient_audio_enabled, theme_config ? JSON.stringify(theme_config) : null]
   );
   if (rows.length === 0) return res.status(404).json({ error: 'store_not_found' });
   res.json(rows[0]);
