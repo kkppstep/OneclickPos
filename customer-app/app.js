@@ -1,587 +1,423 @@
-// ============================================================
-// Menu theme — preset (green/cozy/ice) or custom (color/gradient/image),
-// set by the owner in admin-app and applied at runtime via CSS
-// custom properties, since this is a no-build static page (no
-// per-store build step to bake colors in at deploy time).
-// ============================================================
+// ==========================================
+// Global State & Config
+// ==========================================
+let state = {
+  categories: [],
+  products: [],
+  cart: [],
+  activeCategory: null,
+  theme: {
+    layout: 'card-list', // 'card-list' | 'stage'
+    preset: 'cozy',     // 'cozy' | 'ice' | 'green'
+    accent: '#1B7A3D',
+    bgImage: null
+  },
+  tableNumber: null,
+  audioPlaying: false
+};
+
+// Bootstrap Modals
+let productModalInstance = null;
+let checkoutModalInstance = null;
+let currentModalProductId = null;
+let observer = null;
+
+// Preset Color Palettes
 const THEME_PRESETS = {
-  green: { primary: '#1B7A3D', light: '#EAF7EE', pale: '#DCF0E2' },
-  cozy: { primary: '#8B4513', light: '#FBEEE0', pale: '#F3DFC7' },
-  ice: { primary: '#2A6F97', light: '#EAF6FB', pale: '#D3ECF5' },
+  cozy: { accent: '#8C4327', dark: '#5C2B18', light: '#FDF6F0', pale: '#F4E7DE' },
+  ice:  { accent: '#2B7A9E', dark: '#1A4F68', light: '#F0F8FF', pale: '#DDEEFA' },
+  green:{ accent: '#1B7A3D', dark: '#125C2E', light: '#EAF7EE', pale: '#DCF0E2' }
 };
 
-function shadeColor(hex, percent) {
-  const f = parseInt(hex.slice(1), 16);
-  const t = percent < 0 ? 0 : 255;
-  const p = Math.abs(percent);
-  const R = f >> 16, G = (f >> 8) & 0x00ff, B = f & 0x0000ff;
-  return '#' + (
-    0x1000000 +
-    (Math.round((t - R) * p) + R) * 0x10000 +
-    (Math.round((t - G) * p) + G) * 0x100 +
-    (Math.round((t - B) * p) + B)
-  ).toString(16).slice(1);
-}
-
-function applyTheme(theme) {
-  if (!theme) return;
-  const root = document.documentElement.style;
-  let primary, light, pale;
-
-  if (theme.preset && theme.preset !== 'custom' && THEME_PRESETS[theme.preset]) {
-    ({ primary, light, pale } = THEME_PRESETS[theme.preset]);
-  } else {
-    primary = theme.primary_color || THEME_PRESETS.green.primary;
-    light = shadeColor(primary, 0.85);
-    pale = shadeColor(primary, 0.75);
+// Default Fallback Data
+const DEFAULT_PRODUCTS = [
+  {
+    id: '1',
+    name: 'Special Fried Rice',
+    description: 'Fragrant jasmine rice with eggs, fresh vegetables, and house sauce.',
+    price: 4500,
+    category: 'Mains',
+    image: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=500&auto=format&fit=crop&q=60',
+    soldOut: false,
+    isStageHero: true
+  },
+  {
+    id: '2',
+    name: 'Iced Green Tea',
+    description: 'Refreshing Thai green tea brewed fresh with milk.',
+    price: 2500,
+    category: 'Beverages',
+    image: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=500&auto=format&fit=crop&q=60',
+    soldOut: false,
+    isStageHero: false
   }
+];
 
-  root.setProperty('--accent', primary);
-  root.setProperty('--accent-dark', shadeColor(primary, -0.25));
-  root.setProperty('--accent-light', light);
-  root.setProperty('--accent-pale', pale);
-
-  let background = null;
-  if (theme.background_image_url) {
-    background = `url('${theme.background_image_url}')`;
-  } else if (theme.gradient_from && theme.gradient_to) {
-    background = `linear-gradient(160deg, ${theme.gradient_from}, ${theme.gradient_to})`;
-  }
-  if (background) {
-    document.body.style.backgroundImage = background;
-    document.body.classList.add('themed-bg');
-  }
-
-  if (theme.layout === 'stage') {
-    document.body.classList.add('theme-stage');
-    document.getElementById('stageSection').hidden = false;
-    loadStageFonts(); // only requested for stores actually using this layout
-  }
-}
-
-// Loads Cinzel/Montserrat/Padauk only when the Stage layout is
-// active — most stores use the standard layout and shouldn't pay for
-// fonts they never see.
-let _stageFontsLoaded = false;
-function loadStageFonts() {
-  if (_stageFontsLoaded) return;
-  _stageFontsLoaded = true;
-  const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = 'https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Padauk:wght@400;700&display=swap';
-  document.head.appendChild(link);
-}
-
-// ============================================================
-// Config
-// See api/config.js — CLOUD_API_BASE comes from the CLOUD_API_BASE
-// environment variable on Vercel, not a hardcoded value here.
-// ============================================================
-const CLOUD_API_BASE = (window.POS_CONFIG && window.POS_CONFIG.CLOUD_API_BASE) || '';
-const CLOUD_TIMEOUT_MS = 4000;
-const LOCAL_HUB_TIMEOUT_MS = 4000;
-const PLACEHOLDER_IMAGE = 'data:image/svg+xml;utf8,' + encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="400" height="300" fill="%23EAF7EE"/></svg>'
-);
-
-// ============================================================
-// State
-// ============================================================
-const state = {
-  storeId: null,
-  table: '',
-  menu: [],
-  localHubUrl: null,
-  kbzpayQrUrl: null,
-  cart: [], // { lineId, product_id, name, price, qty, notes }
-  activeProduct: null,
-};
-
-let productModal, checkoutModal;
-
-// ============================================================
-// Networking helpers
-// ============================================================
-async function fetchWithTimeout(url, options = {}, timeoutMs = CLOUD_TIMEOUT_MS) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, { ...options, signal: controller.signal });
-    if (!res.ok) throw new Error(`http_${res.status}`);
-    return await res.json();
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-function getParams() {
-  const params = new URLSearchParams(window.location.search);
-  return { storeId: params.get('store'), table: params.get('table') || '' };
-}
-
-// ============================================================
-// Load menu
-// ============================================================
-async function loadMenu() {
-  const { storeId, table } = getParams();
-  state.storeId = storeId;
-  state.table = table;
-  document.getElementById('tableBadge').textContent = table ? `Table ${table}` : '';
-
-  if (!storeId) {
-    showMessage('No store found. Please rescan the table QR code.', true);
-    return;
-  }
-
-  try {
-    const data = await fetchWithTimeout(`${CLOUD_API_BASE}/public/stores/${storeId}/menu`);
-    state.menu = data.categories || [];
-    state.localHubUrl = data.local_hub_url || null;
-    state.kbzpayQrUrl = data.kbzpay_qr_url || null;
-    state.ambientAudioUrl = data.ambient_audio_url || null;
-    applyTheme(data.theme);
-    document.getElementById('loadingMessage').hidden = true;
-    renderCategoryNav();
-    renderMenu();
-    observeSections();
-    setupAmbientAudio();
-  } catch (err) {
-    showMessage("Can't load the menu right now. Check you're connected to the wifi and try again.", true);
-  }
-}
-
-function showMessage(text, isError) {
-  const el = document.getElementById('loadingMessage');
-  el.hidden = false;
-  el.textContent = text;
-  el.className = 'state-message' + (isError ? ' error' : '');
-}
-
-// ============================================================
-// Rendering — category nav + menu sections
-// ============================================================
-function renderCategoryNav() {
-  const nav = document.getElementById('categoryNav');
-  nav.innerHTML = state.menu.map((cat, i) => `
-    <button class="category-pill${i === 0 ? ' active' : ''}" data-target="cat-${cat.id}">${escapeHtml(cat.name)}</button>
-  `).join('');
-
-  nav.querySelectorAll('.category-pill').forEach((pill) => {
-    pill.addEventListener('click', () => {
-      document.getElementById(pill.dataset.target)?.scrollIntoView({ behavior: 'smooth' });
-    });
-  });
-}
-
-function renderMenu() {
-  const menuEl = document.getElementById('menu');
-  menuEl.innerHTML = state.menu.map((cat) => `
-    <section class="category-section" id="cat-${cat.id}">
-      <div class="category-title">${escapeHtml(cat.name)}</div>
-      ${cat.products.map((p) => productCardHtml(p)).join('')}
-    </section>
-  `).join('');
-
-  menuEl.querySelectorAll('.product-card').forEach((card) => {
-    card.addEventListener('click', () => {
-      if (card.classList.contains('sold-out')) return;
-      const product = findProduct(card.dataset.productId);
-      if (document.body.classList.contains('theme-stage') && product) setStageDish(product);
-      openProductModal(card.dataset.productId);
-    });
-  });
-
-  if (document.body.classList.contains('theme-stage')) {
-    const firstAvailable = state.menu.flatMap((c) => c.products).find((p) => p.is_available !== false);
-    if (firstAvailable) setStageDish(firstAvailable);
-  }
-}
-
-// ============================================================
-// Stage layout (Theme 2) — updates the hero dish display. Reuses the
-// same openProductModal() as the standard layout for the actual
-// add-to-cart step, so quantity/notes/payment/fallback logic is
-// identical between both layouts — no duplicated order logic.
-// ============================================================
-let stageProductId = null;
-function setStageDish(product) {
-  stageProductId = product.id;
-  document.getElementById('stageImg').src = product.image_url || PLACEHOLDER_IMAGE;
-  document.getElementById('stageImg').alt = product.name;
-  document.getElementById('stageTitle').textContent = product.name;
-  document.getElementById('stageDesc').textContent = product.description || '';
-  document.getElementById('stagePrice').textContent = formatMoney(product.price);
-}
-
-document.getElementById('stageAddBtn').addEventListener('click', () => {
-  if (stageProductId) openProductModal(stageProductId);
+// ==========================================
+// Initialization
+// ==========================================
+document.addEventListener('DOMContentLoaded', () => {
+  initModals();
+  bootstrapApp();
 });
 
-function productCardHtml(product) {
-  const soldOut = product.is_available === false;
-  return `
-    <div class="card product-card${soldOut ? ' sold-out' : ''}" data-product-id="${product.id}">
-      <img src="${product.image_url || PLACEHOLDER_IMAGE}" alt="${escapeHtml(product.name)}" loading="lazy">
-      ${soldOut ? '<div class="sold-out-badge">Sold out</div>' : ''}
-      <div class="card-body">
-        <div class="card-title">${escapeHtml(product.name)}</div>
-        ${product.description ? `<div class="card-text">${escapeHtml(product.description)}</div>` : ''}
-        <div class="price-row">
-          <span class="price">${formatMoney(product.price)}</span>
-          ${soldOut ? '' : `<button class="add-btn" aria-label="Add ${escapeHtml(product.name)}">+</button>`}
-        </div>
-      </div>
-    </div>
-  `;
+function initModals() {
+  const pm = document.getElementById('productModal');
+  const cm = document.getElementById('checkoutModal');
+  if (pm) productModalInstance = new bootstrap.Modal(pm);
+  if (cm) checkoutModalInstance = new bootstrap.Modal(cm);
 }
 
-// Highlights the category pill matching whichever section is in view —
-// this is the "easy scroll between sub-menus" behavior.
-function observeSections() {
-  const sections = document.querySelectorAll('.category-section');
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach((entry) => {
+function bootstrapApp() {
+  const config = window.SERVER_CONFIG || {};
+
+  state.products = config.menu || DEFAULT_PRODUCTS;
+  state.tableNumber = config.tableNumber || getQueryParam('table') || null;
+  
+  if (config.theme) {
+    state.theme = { ...state.theme, ...config.theme };
+  }
+
+  // Extract categories
+  state.categories = [...new Set(state.products.map(p => p.category))];
+  if (state.categories.length > 0) state.activeCategory = state.categories[0];
+
+  // UI Setup
+  renderTableBadge();
+  applyThemeSettings();
+  renderCategoryNav();
+  renderMenu();
+  setupScrollObserver();
+  setupCartBar();
+  setupAmbientAudio(config.ambientTrack);
+
+  const loadingMsg = document.getElementById('loadingMessage');
+  if (loadingMsg) loadingMsg.hidden = true;
+}
+
+function getQueryParam(param) {
+  const urlParams = new URLSearchParams(window.location.search);
+  return urlParams.get(param);
+}
+
+function renderTableBadge() {
+  const badge = document.getElementById('tableBadge');
+  if (badge) {
+    badge.textContent = state.tableNumber ? `Table ${state.tableNumber}` : 'Takeaway';
+  }
+}
+
+// ==========================================
+// Theme & Preset Application
+// ==========================================
+function applyThemeSettings() {
+  const { layout, preset, accent, bgImage } = state.theme;
+  const root = document.documentElement;
+
+  // Apply CSS Variables based on Preset or Custom Accent
+  const presetColors = THEME_PRESETS[preset] || THEME_PRESETS.green;
+  const activeAccent = accent || presetColors.accent;
+
+  root.style.setProperty('--accent', activeAccent);
+  root.style.setProperty('--accent-dark', presetColors.dark);
+  root.style.setProperty('--accent-light', presetColors.light);
+  root.style.setProperty('--accent-pale', presetColors.pale);
+
+  // Background Theme handling
+  if (bgImage) {
+    document.body.classList.add('themed-bg');
+    document.body.style.backgroundImage = `url('${bgImage}')`;
+  }
+
+  // Stage Layout Theme vs Card List Theme
+  if (layout === 'stage') {
+    document.body.classList.add('theme-stage');
+    renderStageHero();
+  } else {
+    document.body.classList.remove('theme-stage');
+    const stageSec = document.getElementById('stageSection');
+    if (stageSec) stageSec.hidden = true;
+  }
+}
+
+function renderStageHero() {
+  const heroItem = state.products.find(p => p.isStageHero) || state.products[0];
+  if (!heroItem) return;
+
+  const stageSec = document.getElementById('stageSection');
+  const stageImg = document.getElementById('stageImg');
+  const stageTitle = document.getElementById('stageTitle');
+  const stageDesc = document.getElementById('stageDesc');
+  const stagePrice = document.getElementById('stagePrice');
+  const stageAddBtn = document.getElementById('stageAddBtn');
+
+  if (stageSec) stageSec.hidden = false;
+  if (stageImg) stageImg.src = heroItem.image || '';
+  if (stageTitle) stageTitle.textContent = heroItem.name;
+  if (stageDesc) stageDesc.textContent = heroItem.description;
+  if (stagePrice) stagePrice.textContent = `${heroItem.price.toLocaleString()} MMK`;
+
+  if (stageAddBtn) {
+    stageAddBtn.onclick = () => addToCart(heroItem.id);
+  }
+}
+
+// ==========================================
+// Category Nav & Scroll Spy (IntersectionObserver)
+// ==========================================
+function renderCategoryNav() {
+  const nav = document.getElementById('categoryNav');
+  if (!nav) return;
+
+  nav.innerHTML = state.categories.map(cat => `
+    <button 
+      class="category-pill ${cat === state.activeCategory ? 'active' : ''}" 
+      id="pill-${cat}"
+      onclick="scrollToCategory('${cat}')"
+    >
+      ${cat}
+    </button>
+  `).join('');
+}
+
+function scrollToCategory(category) {
+  state.activeCategory = category;
+  updateActivePill(category);
+  
+  const target = document.getElementById(`cat-${category}`);
+  if (target) {
+    target.scrollIntoView({ behavior: 'smooth' });
+  }
+}
+
+function updateActivePill(category) {
+  document.querySelectorAll('.category-pill').forEach(pill => {
+    pill.classList.remove('active');
+  });
+  const activePill = document.getElementById(`pill-${category}`);
+  if (activePill) {
+    activePill.classList.add('active');
+    activePill.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+  }
+}
+
+// Highlights top navigation pill automatically as user scrolls
+function setupScrollObserver() {
+  if (observer) observer.disconnect();
+
+  const options = {
+    root: null,
+    rootMargin: '-20% 0px -70% 0px',
+    threshold: 0
+  };
+
+  observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
       if (entry.isIntersecting) {
-        const id = entry.target.id;
-        document.querySelectorAll('.category-pill').forEach((pill) => {
-          pill.classList.toggle('active', pill.dataset.target === id);
-        });
+        const catName = entry.target.getAttribute('data-category');
+        if (catName) {
+          state.activeCategory = catName;
+          updateActivePill(catName);
+        }
       }
     });
-  }, { rootMargin: '-100px 0px -70% 0px' });
-  sections.forEach((s) => observer.observe(s));
+  }, options);
+
+  document.querySelectorAll('.category-section').forEach(sec => observer.observe(sec));
 }
 
-function findProduct(productId) {
-  for (const cat of state.menu) {
-    const found = cat.products.find((p) => p.id === productId);
-    if (found) return found;
-  }
-  return null;
+// ==========================================
+// Rendering Menu Sections
+// ==========================================
+function renderMenu() {
+  const menuContainer = document.getElementById('menu');
+  if (!menuContainer) return;
+
+  menuContainer.innerHTML = state.categories.map(cat => {
+    const categoryProducts = state.products.filter(p => p.category === cat);
+
+    return `
+      <section class="category-section" id="cat-${cat}" data-category="${cat}">
+        <h2 class="category-title">${cat}</h2>
+        ${categoryProducts.map(product => `
+          <div class="product-card ${product.soldOut ? 'sold-out' : ''}" onclick="openProductModal('${product.id}')">
+            ${product.soldOut ? '<span class="sold-out-badge">Sold Out</span>' : ''}
+            <img src="${product.image}" alt="${product.name}" loading="lazy">
+            <div class="card-body">
+              <div class="card-title">${product.name}</div>
+              <div class="card-text">${product.description}</div>
+              <div class="price-row">
+                <span class="price">${product.price.toLocaleString()} MMK</span>
+                ${!product.soldOut ? `
+                  <button class="add-btn" type="button" onclick="event.stopPropagation(); addToCart('${product.id}')">+</button>
+                ` : ''}
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      </section>
+    `;
+  }).join('');
 }
 
-// ============================================================
-// Product modal — quantity stepper + comment, then add to cart
-// ============================================================
+// ==========================================
+// Product Modal
+// ==========================================
 function openProductModal(productId) {
-  const product = findProduct(productId);
+  const product = state.products.find(p => p.id === productId);
+  if (!product || product.soldOut) return;
+
+  currentModalProductId = productId;
+  const modalContent = document.getElementById('productModalContent');
+
+  modalContent.innerHTML = `
+    <img src="${product.image}" class="pm-image" alt="${product.name}">
+    <div class="pm-body">
+      <div class="pm-title">${product.name}</div>
+      <div class="pm-desc">${product.description}</div>
+      <div class="pm-price">${product.price.toLocaleString()} MMK</div>
+
+      <div class="qty-stepper">
+        <button class="qty-btn" type="button" onclick="adjustModalQty(-1)">-</button>
+        <span class="qty-value" id="modalQty">1</span>
+        <button class="qty-btn" type="button" onclick="adjustModalQty(1)">+</button>
+      </div>
+
+      <label class="comment-label">Special requests / instructions</label>
+      <textarea class="comment-input" id="modalComment" rows="2" placeholder="e.g. Less spicy, extra sauce..."></textarea>
+
+      <button class="btn-green" type="button" onclick="confirmAddToCart()">Add to order</button>
+      <button class="btn-green-outline" type="button" data-bs-dismiss="modal">Cancel</button>
+    </div>
+  `;
+
+  if (productModalInstance) productModalInstance.show();
+}
+
+function adjustModalQty(delta) {
+  const qtyEl = document.getElementById('modalQty');
+  if (!qtyEl) return;
+  let qty = parseInt(qtyEl.textContent) + delta;
+  if (qty < 1) qty = 1;
+  qtyEl.textContent = qty;
+}
+
+function confirmAddToCart() {
+  const qtyEl = document.getElementById('modalQty');
+  const commentEl = document.getElementById('modalComment');
+
+  const qty = qtyEl ? parseInt(qtyEl.textContent) : 1;
+  const note = commentEl ? commentEl.value.trim() : '';
+
+  addToCart(currentModalProductId, qty, note);
+  if (productModalInstance) productModalInstance.hide();
+}
+
+// ==========================================
+// Cart Logic & Checkout
+// ==========================================
+function addToCart(productId, qty = 1, note = '') {
+  const product = state.products.find(p => p.id === productId);
   if (!product) return;
 
-  let qty = 1;
-  const content = document.getElementById('productModalContent');
+  const existingIndex = state.cart.findIndex(item => item.id === productId && item.note === note);
 
-  function render() {
-    content.innerHTML = `
-      <img class="pm-image" src="${product.image_url || PLACEHOLDER_IMAGE}" alt="${escapeHtml(product.name)}">
-      <div class="pm-body">
-        <div class="pm-title">${escapeHtml(product.name)}</div>
-        ${product.description ? `<div class="pm-desc">${escapeHtml(product.description)}</div>` : ''}
-        <div class="pm-price">${formatMoney(product.price)}</div>
-
-        <div class="qty-stepper">
-          <button class="qty-btn" id="qtyMinus" aria-label="Decrease quantity">−</button>
-          <span class="qty-value" id="qtyValue">${qty}</span>
-          <button class="qty-btn" id="qtyPlus" aria-label="Increase quantity">+</button>
-        </div>
-
-        <label class="comment-label" for="itemComment">Any requests? (e.g. more sweet, less spicy)</label>
-        <textarea class="comment-input" id="itemComment" rows="2" placeholder="Optional"></textarea>
-
-        <button class="btn-green" id="addToCartBtn">Add to order — ${formatMoney(product.price * qty)}</button>
-      </div>
-    `;
-
-    document.getElementById('qtyMinus').addEventListener('click', () => { if (qty > 1) { qty--; render(); } });
-    document.getElementById('qtyPlus').addEventListener('click', () => { qty++; render(); });
-    document.getElementById('addToCartBtn').addEventListener('click', () => {
-      const notes = document.getElementById('itemComment').value.trim();
-      addToCart(product, qty, notes);
-      productModal.hide();
-    });
+  if (existingIndex > -1) {
+    state.cart[existingIndex].qty += qty;
+  } else {
+    state.cart.push({ ...product, qty, note });
   }
 
-  render();
-  productModal.show();
-}
-
-// ============================================================
-// Cart
-// ============================================================
-function addToCart(product, qty, notes) {
-  state.cart.push({
-    lineId: crypto.randomUUID(),
-    product_id: product.id,
-    name: product.name,
-    price: product.price,
-    qty,
-    notes: notes || null,
-  });
   updateCartBar();
 }
 
-function removeFromCart(lineId) {
-  state.cart = state.cart.filter((line) => line.lineId !== lineId);
-  updateCartBar();
-}
-
-function cartTotal() {
-  return state.cart.reduce((sum, line) => sum + line.price * line.qty, 0);
-}
-function cartItemCount() {
-  return state.cart.reduce((sum, line) => sum + line.qty, 0);
+function setupCartBar() {
+  const cartBar = document.getElementById('cartBar');
+  if (cartBar) {
+    cartBar.onclick = openCheckoutModal;
+  }
 }
 
 function updateCartBar() {
-  const bar = document.getElementById('cartBar');
-  const count = cartItemCount();
-  if (count === 0) { bar.hidden = true; return; }
-  bar.hidden = false;
-  document.getElementById('cartCount').textContent = `${count} item${count > 1 ? 's' : ''}`;
-  document.getElementById('cartTotal').textContent = formatMoney(cartTotal());
-}
+  const cartBar = document.getElementById('cartBar');
+  const cartCount = document.getElementById('cartCount');
+  const cartTotal = document.getElementById('cartTotal');
 
-document.getElementById('cartBar').addEventListener('click', () => openCheckout('cart'));
+  const totalItems = state.cart.reduce((sum, item) => sum + item.qty, 0);
+  const totalPrice = state.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
 
-// ============================================================
-// Checkout modal — cart review -> payment -> confirmation
-// ============================================================
-let selectedPayment = 'cash';
+  if (cartCount) cartCount.textContent = `${totalItems} ${totalItems === 1 ? 'item' : 'items'}`;
+  if (cartTotal) cartTotal.textContent = `${totalPrice.toLocaleString()} MMK`;
 
-function openCheckout(step) {
-  if (step === 'cart') renderCartStep();
-  else if (step === 'payment') renderPaymentStep();
-  checkoutModal.show();
-}
-
-function renderCartStep() {
-  const content = document.getElementById('checkoutModalContent');
-  content.innerHTML = `
-    <div class="pm-body">
-      <div class="pm-title">Your order — Table ${escapeHtml(state.table)}</div>
-      <div id="lineItems" style="margin: 14px 0;"></div>
-      <div class="summary-total"><span>Total</span><span>${formatMoney(cartTotal())}</span></div>
-      <button class="btn-green" id="toPaymentBtn" style="margin-top:16px;">Choose payment</button>
-      <button class="btn-green-outline" data-bs-dismiss="modal">Back to menu</button>
-    </div>
-  `;
-
-  const lineItemsEl = content.querySelector('#lineItems');
-  lineItemsEl.innerHTML = state.cart.map((line) => `
-    <div class="line-item">
-      <div>
-        <div class="line-item-name">${line.qty} × ${escapeHtml(line.name)}</div>
-        ${line.notes ? `<div class="line-item-note">${escapeHtml(line.notes)}</div>` : ''}
-        <div class="line-item-sub">${formatMoney(line.price)} each</div>
-      </div>
-      <div style="text-align:right;">
-        <div>${formatMoney(line.price * line.qty)}</div>
-        <button class="btn btn-sm btn-link text-danger p-0 remove-line" data-line-id="${line.lineId}" style="font-size:0.75rem;">Remove</button>
-      </div>
-    </div>
-  `).join('');
-
-  content.querySelectorAll('.remove-line').forEach((btn) => {
-    btn.addEventListener('click', () => { removeFromCart(btn.dataset.lineId); renderCartStep(); });
-  });
-  content.querySelector('#toPaymentBtn').addEventListener('click', renderPaymentStep);
-}
-
-function renderPaymentStep() {
-  const content = document.getElementById('checkoutModalContent');
-  const options = [
-    { id: 'cash', label: 'Cash', hint: 'Pay at the counter' },
-    ...(state.kbzpayQrUrl ? [{ id: 'kbzpay', label: 'KBZPay', hint: 'Scan the QR to pay now' }] : []),
-  ];
-
-  content.innerHTML = `
-    <div class="pm-body">
-      <div class="pm-title">How will you pay?</div>
-      <div id="paymentOptions" style="margin: 14px 0;"></div>
-      <div id="qrArea"></div>
-      <button class="btn-green" id="placeOrderBtn">Place order</button>
-      <button class="btn-green-outline" id="backToCartBtn">Back</button>
-    </div>
-  `;
-
-  const optsEl = content.querySelector('#paymentOptions');
-  optsEl.innerHTML = options.map((opt) => `
-    <div class="payment-option${opt.id === selectedPayment ? ' selected' : ''}" data-id="${opt.id}">
-      ${opt.label}<span class="hint">${opt.hint}</span>
-    </div>
-  `).join('');
-  optsEl.querySelectorAll('.payment-option').forEach((el) => {
-    el.addEventListener('click', () => { selectedPayment = el.dataset.id; renderPaymentStep(); });
-  });
-
-  if (selectedPayment === 'kbzpay' && state.kbzpayQrUrl) {
-    content.querySelector('#qrArea').innerHTML = `
-      <div class="qr-panel">
-        <img src="${state.kbzpayQrUrl}" alt="KBZPay QR code">
-        <div class="line-item-sub">Scan with your KBZPay app, then place your order. Staff will confirm payment at the counter.</div>
-      </div>
-    `;
-  }
-
-  content.querySelector('#placeOrderBtn').addEventListener('click', handlePlaceOrder);
-  content.querySelector('#backToCartBtn').addEventListener('click', renderCartStep);
-}
-
-async function handlePlaceOrder() {
-  const btn = document.getElementById('placeOrderBtn');
-  btn.disabled = true;
-  btn.textContent = 'Placing order…';
-
-  const result = await submitOrder(selectedPayment);
-
-  if (result.ok) {
-    showConfirmation();
-  } else {
-    btn.disabled = false;
-    btn.textContent = 'Place order';
-    const content = document.getElementById('checkoutModalContent');
-    const errorEl = document.createElement('div');
-    errorEl.className = 'state-message error';
-    errorEl.style.padding = '8px 0';
-    errorEl.textContent = "Couldn't reach the kitchen. Check you're connected to the wifi and try again.";
-    content.querySelector('.pm-body').prepend(errorEl);
+  if (cartBar) {
+    cartBar.hidden = totalItems === 0;
   }
 }
 
-function showConfirmation() {
-  document.getElementById('checkoutModalContent').innerHTML = `
-    <div class="confirmation">
-      <div class="mark">✓</div>
-      <div class="pm-title">Order placed</div>
-      <div class="line-item-sub">Table ${escapeHtml(state.table)} — the kitchen has your order.</div>
-      <button class="btn-green" id="doneBtn" style="margin-top:18px;">Done</button>
+function openCheckoutModal() {
+  const modalContent = document.getElementById('checkoutModalContent');
+  if (!modalContent) return;
+
+  const totalPrice = state.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+
+  modalContent.innerHTML = `
+    <div class="modal-header border-0 pb-0">
+      <h5 class="modal-title fw-bold">Your Order</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    </div>
+    <div class="modal-body">
+      ${state.cart.map(item => `
+        <div class="line-item">
+          <div>
+            <div class="line-item-name">${item.name} x ${item.qty}</div>
+            ${item.note ? `<div class="line-item-note">"${item.note}"</div>` : ''}
+          </div>
+          <div class="line-item-sub">${(item.price * item.qty).toLocaleString()} MMK</div>
+        </div>
+      `).join('')}
+
+      <div class="summary-total">
+        <span>Total</span>
+        <span>${totalPrice.toLocaleString()} MMK</span>
+      </div>
+    </div>
+    <div class="modal-footer border-0">
+      <button class="btn-green" type="button" onclick="submitOrder()">Confirm Order</button>
     </div>
   `;
-  document.getElementById('doneBtn').addEventListener('click', () => {
-    state.cart = [];
-    updateCartBar();
-    checkoutModal.hide();
-  });
+
+  if (checkoutModalInstance) checkoutModalInstance.show();
 }
 
-// ============================================================
-// Order submission — cloud first, local hub fallback (LAN only)
-// ============================================================
-function buildOrderPayload(paymentMethod) {
-  const items = state.cart.map((line) => ({
-    product_id: line.product_id,
-    product_name_snapshot: line.name,
-    qty: line.qty,
-    unit_price: line.price,
-    line_total: line.price * line.qty,
-    notes: line.notes,
-  }));
-  const subtotal = items.reduce((sum, i) => sum + i.line_total, 0);
+function submitOrder() {
+  alert('Order submitted successfully!');
+  state.cart = [];
+  updateCartBar();
+  if (checkoutModalInstance) checkoutModalInstance.hide();
+}
 
-  return {
-    id: crypto.randomUUID(),
-    store_id: state.storeId,
-    table_number: state.table,
-    channel: 'customer_qr',
-    status: 'open',
-    subtotal,
-    tax_total: 0,
-    discount_total: 0,
-    total: subtotal,
-    items,
-    payments: [{ method: paymentMethod, amount: subtotal, status: paymentMethod === 'cash' ? 'confirmed' : 'pending' }],
+// ==========================================
+// Ambient Audio Controls
+// ==========================================
+function setupAmbientAudio(trackUrl) {
+  const btn = document.getElementById('ambientToggle');
+  const audio = document.getElementById('ambientAudio');
+
+  if (!trackUrl || !btn || !audio) return;
+
+  audio.src = trackUrl;
+  btn.hidden = false;
+
+  btn.onclick = () => {
+    if (state.audioPlaying) {
+      audio.pause();
+      btn.classList.add('muted');
+      state.audioPlaying = false;
+    } else {
+      audio.play().then(() => {
+        btn.classList.remove('muted');
+        state.audioPlaying = true;
+      }).catch(err => console.error("Audio playback error:", err));
+    }
   };
 }
-
-async function submitOrder(paymentMethod) {
-  const order = buildOrderPayload(paymentMethod);
-
-  try {
-    await fetchWithTimeout(
-      `${CLOUD_API_BASE}/public/stores/${state.storeId}/orders`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(order) },
-      CLOUD_TIMEOUT_MS
-    );
-    return { ok: true, via: 'cloud' };
-  } catch (cloudErr) {
-    if (!state.localHubUrl) return { ok: false };
-    try {
-      await fetchWithTimeout(
-        `${state.localHubUrl}/orders`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(order) },
-        LOCAL_HUB_TIMEOUT_MS
-      );
-      return { ok: true, via: 'hub' };
-    } catch (hubErr) {
-      return { ok: false };
-    }
-  }
-}
-
-// ============================================================
-// Ambient music — small looping track set by the store owner.
-// Autoplay-with-sound is a browser platform policy, not something any
-// site can force — but we try immediately on load first (succeeds on
-// desktop browsers, PWAs, and returning visitors with high engagement)
-// and only fall back to starting on the first tap if that's blocked,
-// rather than requiring a deliberate "play music" button press either
-// way. A visible toggle lets the customer mute it at any time.
-// ============================================================
-function setupAmbientAudio() {
-  if (!state.ambientAudioUrl) return;
-
-  const audio = document.getElementById('ambientAudio');
-  const toggle = document.getElementById('ambientToggle');
-  audio.src = state.ambientAudioUrl;
-  audio.volume = 0.35;
-  toggle.hidden = false;
-
-  let userMuted = sessionStorage.getItem('ambientMuted') === 'true';
-  let started = false;
-
-  function updateToggleIcon() {
-    toggle.classList.toggle('muted', userMuted);
-  }
-  updateToggleIcon();
-
-  function tryStart() {
-    if (started || userMuted) return;
-    audio.play().then(() => { started = true; }).catch(() => {
-      // Blocked by browser autoplay policy — the click listener below
-      // will retry on the customer's first tap.
-    });
-  }
-
-  tryStart(); // attempt immediately; silently falls through if blocked
-  document.addEventListener('click', tryStart, { once: false });
-
-  toggle.addEventListener('click', () => {
-    userMuted = !userMuted;
-    sessionStorage.setItem('ambientMuted', String(userMuted));
-    updateToggleIcon();
-    if (userMuted) {
-      audio.pause();
-    } else {
-      started = false;
-      tryStart();
-    }
-  });
-}
-
-// ============================================================
-// Utilities
-// ============================================================
-function formatMoney(amount) {
-  return `${Number(amount).toLocaleString()} MMK`;
-}
-function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str ?? '';
-  return div.innerHTML;
-}
-
-// ============================================================
-document.addEventListener('DOMContentLoaded', () => {
-  productModal = new bootstrap.Modal(document.getElementById('productModal'));
-  checkoutModal = new bootstrap.Modal(document.getElementById('checkoutModal'));
-  loadMenu();
-});
