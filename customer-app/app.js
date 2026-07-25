@@ -1,6 +1,7 @@
 // ==========================================
 // Global State & Config
 // ==========================================
+import InteractiveStage from './components/InteractiveStage.jsx';
 let state = {
   categories: [],
   products: [],
