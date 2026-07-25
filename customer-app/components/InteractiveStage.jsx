@@ -1,16 +1,11 @@
-// MODULE 2: Upgraded InteractiveStage.jsx
-// Enables true user interactivity: drag-to-rotate, lighting adjustments, zoom, and interactive steam controls.
-function InteractiveStage({ menu, activeIndex, onOpenFullscreen, steamEnabled, gyroActive }) {
+import React, { useState, useEffect, useRef } from 'react';
+import { Plus, Ban } from 'lucide-react';
+import { useCart } from '../context/CartContext'; // Adjust import path if needed
+
+export default function InteractiveStage({ menu, activeIndex, onOpenFullscreen, steamEnabled, gyroActive }) {
   const { addToCart } = useCart();
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const viewportRef = useRef(null);
-
-  // Interactive controls state
-  const [manualRotation, setManualRotation] = useState(0);
-  const [isSpinning, setIsSpinning] = useState(true);
-  const [isDragging, setIsDragging] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState(1);
-  const startXRef = useRef(0);
 
   const [typedBadge, setTypedBadge] = useState('');
   const [typedTitle, setTypedTitle] = useState('');
@@ -20,37 +15,6 @@ function InteractiveStage({ menu, activeIndex, onOpenFullscreen, steamEnabled, g
 
   const activeDish = menu[activeIndex] || menu[0];
 
-  // Auto-rotation loop (pauses when user interacts)
-  useEffect(() => {
-    if (!isSpinning || isDragging) return;
-    const interval = setInterval(() => {
-      setManualRotation((prev) => (prev + 0.8) % 360);
-    }, 30);
-    return () => clearInterval(interval);
-  }, [isSpinning, isDragging]);
-
-  // Touch & Drag to Spin Controls
-  const handlePointerDown = (e) => {
-    setIsDragging(true);
-    startXRef.current = e.clientX || (e.touches && e.touches[0].clientX) || 0;
-  };
-
-  const handlePointerMove = (e) => {
-    if (!isDragging) {
-      handleMouseMove(e);
-      return;
-    }
-    const currentX = e.clientX || (e.touches && e.touches[0].clientX) || 0;
-    const deltaX = currentX - startXRef.current;
-    setManualRotation((prev) => (prev + deltaX * 0.5) % 360);
-    startXRef.current = currentX;
-  };
-
-  const handlePointerUp = () => {
-    setIsDragging(false);
-  };
-
-  // Typewriter effect logic
   useEffect(() => {
     if (!activeDish) return;
     
@@ -66,6 +30,7 @@ function InteractiveStage({ menu, activeIndex, onOpenFullscreen, steamEnabled, g
     
     let phase = 'badge'; 
     let progressIndex = 0;
+    
     let badgeAccumulator = "";
     let titleAccumulator = "";
     let descAccumulator = "";
@@ -109,7 +74,7 @@ function InteractiveStage({ menu, activeIndex, onOpenFullscreen, steamEnabled, g
   }, [activeIndex, menu, activeDish]);
 
   const handleMouseMove = (e) => {
-    if (gyroActive || !viewportRef.current || isDragging) return;
+    if (gyroActive || !viewportRef.current) return;
     const bounds = viewportRef.current.getBoundingClientRect();
     const relX = e.clientX - (bounds.left + bounds.width / 2);
     const relY = e.clientY - (bounds.top + bounds.height / 2);
@@ -119,17 +84,32 @@ function InteractiveStage({ menu, activeIndex, onOpenFullscreen, steamEnabled, g
   };
 
   const handleMouseLeave = () => {
-    if (gyroActive || isDragging) return;
+    if (gyroActive) return;
     setTilt({ x: 0, y: 0 });
   };
+
+  useEffect(() => {
+    if (!gyroActive) return;
+
+    const handleOrientation = (e) => {
+      const tX = e.gamma || 0; 
+      const tY = e.beta || 0;  
+      const rY = Math.max(-14, Math.min(14, tX * 0.45));
+      const rX = Math.max(-14, Math.min(14, (tY - 50) * 0.4));
+      setTilt({ x: rX, y: rY });
+    };
+
+    window.addEventListener('deviceorientation', handleOrientation);
+    return () => {
+      window.removeEventListener('deviceorientation', handleOrientation);
+    };
+  }, [gyroActive]);
 
   return (
     <div 
       ref={viewportRef}
-      onMouseMove={handlePointerMove}
+      onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      onMouseUp={handlePointerUp}
-      onTouchEnd={handlePointerUp}
       className="flex-grow flex items-center justify-between relative select-none py-1 px-3 md:px-6 mt-2 h-full w-full"
     >
       <div className="absolute inset-y-0 left-0 w-[65%] bg-gradient-to-r from-[#120e16] via-[#120e16]/85 to-transparent pointer-events-none z-20" />
@@ -154,7 +134,7 @@ function InteractiveStage({ menu, activeIndex, onOpenFullscreen, steamEnabled, g
           {tickedPrice.toLocaleString()} MMK
         </div>
 
-        <div className="pointer-events-auto flex items-center gap-2">
+        <div className="pointer-events-auto">
           <button 
             onClick={() => addToCart(activeDish)}
             disabled={activeDish?.soldOut}
@@ -173,10 +153,8 @@ function InteractiveStage({ menu, activeIndex, onOpenFullscreen, steamEnabled, g
         </div>
       </div>
 
-      {/* Interactive 3D Presentation Graphic with Manual Controls */}
+      {/* Parallax Plate Presentation Graphic */}
       <div className="absolute right-0 top-0 bottom-0 w-[60%] sm:w-[55%] flex items-center justify-center z-10 overflow-visible">
-        
-        {/* Shadow Casting Effect */}
         <div 
           id="shadow-cast"
           style={{
@@ -185,60 +163,33 @@ function InteractiveStage({ menu, activeIndex, onOpenFullscreen, steamEnabled, g
           className="absolute w-[85%] h-[12%] bg-black/95 blur-2xl rounded-full pointer-events-none transition-transform duration-200"
         />
 
-        {/* Interactive Interactive Plate Container */}
         <div 
-          onMouseDown={handlePointerDown}
-          onTouchStart={handlePointerDown}
-          onDoubleClick={onOpenFullscreen}
+          onClick={onOpenFullscreen}
           style={{
-            transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) scale(${zoomLevel})`,
-            cursor: isDragging ? 'grabbing' : 'grab'
+            transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) scale(1.02)`
           }}
-          className="plate-container w-[170px] h-[170px] sm:w-[220px] sm:h-[220px] md:w-[320px] md:h-[320px] relative flex items-center justify-center transition-transform duration-150"
+          className="plate-container w-[170px] h-[170px] sm:w-[220px] sm:h-[220px] md:w-[320px] md:h-[320px] relative flex items-center justify-center cursor-pointer transition-transform duration-300"
         >
-          {/* Outer Ring Plate Base */}
           <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#131117] to-[#2d2539] shadow-[inset_0_3px_12px_rgba(255,255,255,0.03),0_12px_35px_rgba(0,0,0,0.95)] border border-white/5 flex items-center justify-center">
             <div className="w-[94%] h-[94%] rounded-full border border-purple-500/10 flex items-center justify-center">
               <div className="w-[86%] h-[86%] rounded-full bg-gradient-to-b from-[#0e0c12] to-[#040405] shadow-[inset_0_0_15px_rgba(0,0,0,0.85)] border border-white/5" />
             </div>
           </div>
 
-          {/* Rotatable Dish Image Driven by Touch/Drag & Speed state */}
-          <div 
-            style={{ transform: `rotate(${manualRotation}deg)` }}
-            className="absolute w-[80%] h-[80%] rounded-full overflow-hidden z-10 flex items-center justify-center transition-transform duration-75"
-          >
+          <div className="absolute w-[80%] h-[80%] rounded-full overflow-hidden z-10 flex items-center justify-center">
             <img 
               src={activeDish?.image} 
               alt={activeDish?.title}
-              className="w-full h-full object-cover rounded-full shadow-2xl pointer-events-none"
+              className="w-full h-full object-cover rounded-full shadow-2xl"
             />
           </div>
 
-          {/* Heat Steam Overlay */}
           {steamEnabled && (
             <div className="absolute inset-0 z-20 pointer-events-none mix-blend-screen opacity-30 flex items-center justify-center">
               <div className="w-1/2 h-1/2 bg-gradient-to-t from-transparent via-white/10 to-transparent blur-xl animate-pulse" />
             </div>
           )}
         </div>
-
-        {/* Interactive Controls Overlay for the Stage */}
-        <div className="absolute bottom-2 right-4 z-40 flex items-center gap-1.5 bg-black/40 backdrop-blur-md px-2 py-1 rounded-full border border-white/10">
-          <button 
-            onClick={() => setIsSpinning(!isSpinning)}
-            className="text-[8px] uppercase tracking-wider px-2 py-0.5 rounded bg-white/5 text-purple-300 hover:bg-white/10"
-          >
-            {isSpinning ? 'Pause Rotation' : 'Spin Stage'}
-          </button>
-          <button 
-            onClick={() => setZoomLevel(prev => (prev === 1 ? 1.15 : 1))}
-            className="text-[8px] uppercase tracking-wider px-2 py-0.5 rounded bg-white/5 text-amber-300 hover:bg-white/10"
-          >
-            {zoomLevel === 1 ? 'Zoom In' : 'Reset Zoom'}
-          </button>
-        </div>
-
       </div>
     </div>
   );
