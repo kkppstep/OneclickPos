@@ -69,16 +69,36 @@ things:
   are hand-picked accent + shade sets (`src/lib/theme.js`); `custom`
   derives the same shade set from the store's own `primary_color` so
   an arbitrary brand color still gets a coherent dark/light/pale trio
-  instead of always falling back to green's.
-- **layout** — `standard` (scrolling card list) or `stage` (a
-  single animated hero dish with a tap-to-swap grid below it, for
-  stores that want something more premium-feeling). Stage lazy-loads
-  its two Google Fonts (Cinzel, Padauk) only when a store actually
-  uses it.
+  instead of always falling back to green's. **Only applies to
+  Standard layout** — see below.
+- **layout** — `standard` (scrolling card list, accent-colorable per
+  above) or `stage`.
 
-A `custom` preset can also set a background image or gradient
-(`background_image_url` wins if both are set — same rule the
-admin-app hint text describes).
+**Stage** is a full split-screen redesign: a left/top panel holds one
+dish at a time in a 3D-tilting circular frame (mouse-tilt on desktop,
+device-gyroscope on mobile, toggleable), with its name and description
+typed on letter by letter; tapping the plate opens a fullscreen,
+swipeable lightbox across the entire menu. The right/bottom panel is a
+two-column glass card grid, grouped by category with the same
+scroll-spy pill nav as Standard. Small synthesized click/chime sounds
+(`src/lib/sound.js`, pure Web Audio oscillators, no audio files) play
+on selection and add-to-cart, independent of a store's real
+`ambient_audio_url` track (which still plays via the same toggle,
+just relocated into Stage's control cluster instead of a floating
+button).
+
+Stage's purple/indigo/amber palette, glass panels, and glow effects
+are **fixed** — deliberately not wired to a store's preset/accent or
+custom background, since the shadows/rings/badges throughout are
+tuned specifically for this look. A store on Stage gets this exact
+look regardless of its preset selection. Only `layout` is read for
+Stage stores; `preset`/`primary_color`/`background_image_url`/
+`gradient_from`/`gradient_to` are ignored. Cinzel + Padauk are still
+lazy-loaded only when a store is actually on Stage.
+
+A `custom` preset on **Standard** layout can also set a background
+image or gradient (`background_image_url` wins if both are set — same
+rule the admin-app hint text describes).
 
 ## Payment
 
@@ -87,7 +107,10 @@ the table, no QR) and KBZPay (shows the store's static QR code,
 customer scans and pays via their own KBZPay app). There's no payment
 gateway integration here — placing the order records a `payments` row
 with `status: 'pending'`; reconciling that against what actually came
-in is a staff/admin-app job, not this page's.
+in is a staff/admin-app job, not this page's. Table number always
+comes read-only from the QR code's `?table=` param — there's
+deliberately no way for a customer to retype it and risk an order
+going to the wrong table.
 
 ## Structure
 
@@ -99,18 +122,27 @@ src/
     theme.js             preset/shade resolution, background, lazy fonts
     color.js              hex/HSL helpers for deriving custom shades
     config.js               reads CLOUD_API_BASE, ?store=/?table=
+    sound.js                 synthesized select/success sounds (Stage only)
   context/CartContext.jsx  cart state (add/remove/qty), shared via useCart()
   hooks/
     useMenu.js            fetch + loading/error state + flattened lookups
-    useScrollSpy.js        active-category tracking for Standard layout
+    useScrollSpy.js        active-category tracking, scoped to a root element
+    useAmbientAudio.js      shared play/pause logic for a store's real track
+    useOnlineStatus.js       navigator.onLine, for Stage's status dot
   components/
-    Header.jsx              brand, table badge, category pills
-    MenuSection.jsx / ProductCard.jsx      Standard layout
-    StageHero.jsx / InteractiveStage.jsx   Stage layout (tilt, typewriter, steam)
-    ProductModal.jsx        qty + notes, adds to cart
+    Header.jsx / MenuSection.jsx / ProductCard.jsx     Standard layout
+    StageControls.jsx        table badge, music/gyro/steam toggles, cart button
+    CategoryPills.jsx          Stage's segmented pill nav
+    MenuGridSection.jsx          Stage's 2-col glass card grid, per category
+    InteractiveStage.jsx           Stage's hero: tilt, typewriter, steam
+    DishModal.jsx                    fullscreen swipeable lightbox
+    ProductModal.jsx        Standard's qty + notes modal, adds to cart
     CheckoutModal.jsx       review → payment → submit → confirmation
+                             (drawer + small glass panels on Stage,
+                             one centered modal on Standard)
     CartBar.jsx              floating summary, opens checkout
-    Modal.jsx                 shared dialog (backdrop, esc, scroll-lock)
+    Modal.jsx                 shared dialog shell — center or right-drawer
+                               variant, both with backdrop/esc/scroll-lock
 ```
 
 ## Known gaps
@@ -121,3 +153,21 @@ src/
   separate infrastructure this page doesn't attempt to replace.
 - Payment status is always recorded as `pending`; nothing here marks
   it `paid`.
+
+## Intentionally not carried over from the Stage design reference
+
+Stage's look and interactions come from a reference mockup, but three
+things in it were deliberately not replicated:
+
+- A customer-facing "POS API Config" control that let anyone typing at
+  the page repoint `CLOUD_API_BASE` to an arbitrary URL, stored in
+  `localStorage`. Real config still only comes from the server-set
+  `CLOUD_API_BASE` env var (`api/config.js`) — customers can't change
+  where orders go.
+- A flat "Presentation Surcharge" added to every order total. There's
+  no such fee anywhere in the real schema/admin-app; adding one here
+  would have silently overcharged customers for something not actually
+  configured.
+- An editable table number (tap-to-retype via a prompt). Table number
+  is read-only from the QR code's `?table=` param, since a customer
+  changing it risks their order going to the wrong table.

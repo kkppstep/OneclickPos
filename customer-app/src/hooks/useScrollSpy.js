@@ -5,7 +5,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 // same rootMargin trick as the original: treat a section as "active"
 // once it's crossed 20% from the top, so the pill updates a beat
 // before the section title reaches the very top of the viewport.
-export function useScrollSpy(categoryNames) {
+//
+// `rootElement` scopes the observer to a specific scrolling container
+// (Stage layout's independently-scrolling menu panel) rather than the
+// whole viewport (Standard layout, where the page itself scrolls).
+export function useScrollSpy(categoryNames, rootElement = null) {
   const [activeCategory, setActiveCategory] = useState(categoryNames[0] || null);
   const sectionRefs = useRef({});
   const key = categoryNames.join('|');
@@ -23,13 +27,13 @@ export function useScrollSpy(categoryNames) {
           }
         });
       },
-      { root: null, rootMargin: '-20% 0px -70% 0px', threshold: 0 }
+      { root: rootElement, rootMargin: '-20% 0px -70% 0px', threshold: 0 }
     );
 
     Object.values(sectionRefs.current).forEach((el) => el && observer.observe(el));
     return () => observer.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
+  }, [key, rootElement]);
 
   const registerSection = useCallback(
     (name) => (el) => {

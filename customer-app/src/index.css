@@ -7,7 +7,6 @@
   --font-display: "Cinzel", serif;
   --font-burmese: "Padauk", sans-serif;
 }
-
 :root {
   /* Per-store theme values. Real defaults come from the API's
      theme_config on every load — these are just the pre-fetch
@@ -97,5 +96,73 @@ body {
   .animate-scale-up,
   .animate-fade-in {
     animation: none !important;
+  }
+}
+
+/* =====================================================================
+   Stage layout v2 — cinematic split hero + glass card grid.
+   Everything below is fixed to this palette regardless of a store's
+   preset/accent choice (see lib/theme.js comments) — the glow, ring,
+   and badge colors are tuned specifically for this look throughout,
+   so it isn't built to be recolored per store.
+   ===================================================================== */
+
+.serif-title {
+  font-family: var(--font-display);
+}
+
+.burmese-text {
+  font-family: "Padauk", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Frosted glass surface — background + blur only; radius, border
+   color, and padding come from Tailwind utilities alongside it so
+   each use (card, modal, control button) can vary those freely. */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.glass-btn {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+.glass-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Perspective context for the plate's rotateX/rotateY tilt to read as
+   3D rather than a flat skew. */
+.stage-3d {
+  perspective: 1200px;
+}
+.plate-container {
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+@keyframes slide-left {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+.animate-slide-left {
+  animation: slide-left 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-slide-left {
+    animation: none !important;
+  }
+  .plate-container {
+    transition: none !important;
   }
 }

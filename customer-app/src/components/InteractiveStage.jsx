@@ -1,165 +1,193 @@
 import { useEffect, useRef, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Ban, Plus } from 'lucide-react';
 import { formatMMK } from '../lib/format';
 import { useCart } from '../context/CartContext';
+import { sound } from '../lib/sound';
 
-const MAX_TILT_DEG = 8;
+const prefersReducedMotion = () =>
+  typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-export default function InteractiveStage({ dish }) {
+export default function InteractiveStage({ dish, onOpenFullscreen, steamEnabled, gyroActive }) {
   const { addToCart } = useCart();
-  const cardRef = useRef(null);
-  const frameRef = useRef(null);
-  const [typedLength, setTypedLength] = useState(0);
-  const [orientationEnabled, setOrientationEnabled] = useState(false);
-  const [showEnableTilt, setShowEnableTilt] = useState(false);
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
+  const viewportRef = useRef(null);
 
-  // Typewriter reveal of the description, restarting whenever the
-  // active dish changes (grid tap below swaps `dish`).
-  useEffect(() => {
-    setTypedLength(0);
-    const text = dish?.description || '';
-    if (!text) return undefined;
-    const id = setInterval(() => {
-      setTypedLength((len) => (len >= text.length ? len : len + 1));
-    }, 18);
-    return () => clearInterval(id);
-  }, [dish?.id, dish?.description]);
+  const [typedBadge, setTypedBadge] = useState('');
+  const [typedTitle, setTypedTitle] = useState('');
+  const [typedDesc, setTypedDesc] = useState('');
+  const [priceRevealed, setPriceRevealed] = useState(false);
+  const [typingComplete, setTypingComplete] = useState(false);
 
-  // iOS requires a user gesture to grant DeviceOrientationEvent
-  // access; Android/desktop don't gate it at all. Feature-detect
-  // rather than assume, and only surface the enable button where it's
-  // actually needed.
+  // Sequential typewriter — badge, then title, then description, then
+  // reveal price + the add button together. Restarts whenever the
+  // active dish changes (grid tap, fullscreen nav, or initial load).
   useEffect(() => {
-    const needsPermission = typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function';
-    setShowEnableTilt(needsPermission);
-    if (!needsPermission && typeof window !== 'undefined' && 'DeviceOrientationEvent' in window) {
-      setOrientationEnabled(true);
-    }
-  }, []);
+    if (!dish) return undefined;
+
+    setTypedBadge('');
+    setTypedTitle('');
+    setTypedDesc('');
+    setPriceRevealed(false);
+    setTypingComplete(false);
+
+    const fullBadge = dish.category_name || 'Gourmet Selection';
+    const fullTitle = dish.name || '';
+    const fullDesc = dish.description || '';
+
+    let phase = 'badge';
+    let i = 0;
+    let badgeAcc = '';
+    let titleAcc = '';
+    let descAcc = '';
+
+    const tick = setInterval(() => {
+      if (phase === 'badge') {
+        if (i < fullBadge.length) {
+          badgeAcc += fullBadge[i++];
+          setTypedBadge(badgeAcc);
+        } else {
+          phase = 'title';
+          i = 0;
+        }
+      } else if (phase === 'title') {
+        if (i < fullTitle.length) {
+          titleAcc += fullTitle[i++];
+          setTypedTitle(titleAcc);
+        } else {
+          phase = 'desc';
+          i = 0;
+        }
+      } else if (phase === 'desc') {
+        if (i < fullDesc.length) {
+          descAcc += fullDesc[i++];
+          setTypedDesc(descAcc);
+        } else {
+          phase = 'done';
+        }
+      } else {
+        setPriceRevealed(true);
+        setTypingComplete(true);
+        clearInterval(tick);
+      }
+    }, 10);
+
+    return () => clearInterval(tick);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dish?.id]);
+
+  const handleMouseMove = (e) => {
+    if (gyroActive || prefersReducedMotion() || !viewportRef.current) return;
+    const bounds = viewportRef.current.getBoundingClientRect();
+    const relX = e.clientX - (bounds.left + bounds.width / 2);
+    const relY = e.clientY - (bounds.top + bounds.height / 2);
+    setTilt({ x: -(relY / (bounds.height / 2)) * 14, y: (relX / (bounds.width / 2)) * 14 });
+  };
+
+  const handleMouseLeave = () => {
+    if (gyroActive) return;
+    setTilt({ x: 0, y: 0 });
+  };
 
   useEffect(() => {
-    if (!orientationEnabled) return undefined;
-    const onOrientation = (e) => {
-      if (e.beta == null || e.gamma == null) return;
-      const rotateX = clamp(((e.beta - 45) / 45) * -MAX_TILT_DEG, -MAX_TILT_DEG, MAX_TILT_DEG);
-      const rotateY = clamp((e.gamma / 45) * MAX_TILT_DEG, -MAX_TILT_DEG, MAX_TILT_DEG);
-      applyTilt(cardRef.current, rotateX, rotateY);
+    if (!gyroActive || prefersReducedMotion()) return undefined;
+    const handleOrientation = (e) => {
+      const gamma = e.gamma || 0;
+      const beta = e.beta || 0;
+      setTilt({
+        x: Math.max(-14, Math.min(14, (beta - 50) * 0.4)),
+        y: Math.max(-14, Math.min(14, gamma * 0.45)),
+      });
     };
-    window.addEventListener('deviceorientation', onOrientation);
-    return () => window.removeEventListener('deviceorientation', onOrientation);
-  }, [orientationEnabled]);
-
-  const enableTilt = async () => {
-    try {
-      const result = await DeviceOrientationEvent.requestPermission();
-      if (result === 'granted') setOrientationEnabled(true);
-    } catch {
-      // ignored — falls back to mouse-move tilt on desktop
-    }
-  };
-
-  const onMouseMove = (e) => {
-    if (orientationEnabled) return; // don't fight the gyroscope on touch devices
-    const el = cardRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const px = (e.clientX - rect.left) / rect.width - 0.5;
-    const py = (e.clientY - rect.top) / rect.height - 0.5;
-    cancelAnimationFrame(frameRef.current);
-    frameRef.current = requestAnimationFrame(() => {
-      applyTilt(el, py * -MAX_TILT_DEG, px * MAX_TILT_DEG);
-    });
-  };
-
-  const onMouseLeave = () => {
-    cancelAnimationFrame(frameRef.current);
-    applyTilt(cardRef.current, 0, 0);
-  };
+    window.addEventListener('deviceorientation', handleOrientation);
+    return () => window.removeEventListener('deviceorientation', handleOrientation);
+  }, [gyroActive]);
 
   if (!dish) return null;
-  const description = dish.description || '';
+  const soldOut = !dish.is_available;
 
   return (
-    <div className="relative px-4 pt-6 pb-8">
-      {showEnableTilt && !orientationEnabled && (
-        <button
-          type="button"
-          onClick={enableTilt}
-          className="absolute right-6 top-6 z-10 rounded-full bg-white/10 px-3 py-1 text-[0.7rem] font-semibold text-gray-300 backdrop-blur"
-        >
-          Enable tilt
-        </button>
-      )}
+    <div
+      ref={viewportRef}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      className="relative flex h-full w-full flex-grow select-none items-center justify-between py-1 px-3 md:px-6"
+    >
+      <div className="pointer-events-none absolute inset-y-0 left-0 z-20 w-[65%] bg-gradient-to-r from-[#120e16] via-[#120e16]/85 to-transparent" />
 
-      <div
-        ref={cardRef}
-        onMouseMove={onMouseMove}
-        onMouseLeave={onMouseLeave}
-        style={{ transformStyle: 'preserve-3d', transition: 'transform 0.15s ease-out' }}
-        className="relative mx-auto flex max-w-sm flex-col items-center rounded-[28px] border border-white/8 bg-gradient-to-b from-white/5 to-transparent px-6 pb-7 pt-10 text-center"
-      >
-        {dish.category_name && (
-          <span
-            className="mb-3 rounded-full border px-3 py-1 text-[0.68rem] font-bold uppercase tracking-[0.12em]"
-            style={{ color: 'var(--accent)', borderColor: 'var(--accent)' }}
+      {/* Floating text panel */}
+      <div className="pointer-events-none absolute inset-y-0 left-4 z-30 flex w-[48%] flex-col justify-center pr-1 text-left md:left-8">
+        <span className="mb-1 text-[7px] font-bold uppercase tracking-widest text-purple-400 md:text-[8px]">
+          {typedBadge || 'Gourmet Selection'}
+        </span>
+
+        <h2 className="serif-title mb-1 text-xs leading-snug font-semibold tracking-wide text-white drop-shadow-lg sm:text-sm md:text-xl lg:text-2xl">
+          {typedTitle}
+        </h2>
+
+        <p className="mb-3 max-w-full text-[8px] font-light leading-relaxed text-gray-400 drop-shadow sm:text-[10px]">
+          {typedDesc}
+        </p>
+
+        {priceRevealed && <p className="mb-3 text-[10px] font-bold text-amber-300 drop-shadow sm:text-base">{formatMMK(dish.price)}</p>}
+
+        <div className="pointer-events-auto">
+          <button
+            type="button"
+            onClick={() => {
+              sound.play('success');
+              addToCart(dish);
+            }}
+            disabled={soldOut}
+            className={`flex transform items-center justify-center rounded-full border border-purple-400/20 px-3 py-1.5 text-[8px] font-bold tracking-wider text-white uppercase shadow-[0_8px_20px_rgba(124,58,237,0.35)] transition-all duration-300 active:scale-95 md:px-5 md:py-3 md:text-[10px] ${
+              soldOut ? 'cursor-not-allowed from-neutral-700 to-neutral-800 opacity-60' : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500'
+            } ${typingComplete ? 'scale-100 opacity-100' : 'scale-0 opacity-0'}`}
           >
-            {dish.category_name}
-          </span>
-        )}
+            {soldOut ? (
+              <>
+                <Ban className="mr-1 h-3 w-3 text-red-400" /> Sold Out
+              </>
+            ) : (
+              <>
+                <Plus className="mr-1 h-3 w-3 text-amber-300" /> Add to Order
+              </>
+            )}
+          </button>
+        </div>
+      </div>
 
-        <div className="relative mb-5 h-44 w-44">
-          {[0, 1.4].map((delay) => (
-            <span
-              key={delay}
-              className="stage-steam absolute left-1/2 top-0 h-16 w-3 -translate-x-1/2 rounded-full bg-white/25 blur-md"
-              style={{ animationDelay: `${delay}s` }}
-              aria-hidden="true"
-            />
-          ))}
-          {dish.image_url ? (
-            <img
-              src={dish.image_url}
-              alt={dish.name}
-              className="h-44 w-44 rounded-full border-4 border-white/10 object-cover shadow-[0_20px_45px_rgba(0,0,0,0.45)]"
-            />
-          ) : (
-            <div className="h-44 w-44 rounded-full border-4 border-white/10 bg-white/5" />
+      {/* Parallax plate */}
+      <div className="absolute inset-y-0 right-0 z-10 flex w-[60%] items-center justify-center overflow-visible sm:w-[55%]">
+        <div
+          style={{ transform: `translate(${-tilt.y * 0.4}px, calc(65px + ${-tilt.x * 0.2}px)) scaleY(0.35) scaleX(0.95)` }}
+          className="pointer-events-none absolute h-[12%] w-[85%] rounded-full bg-black/95 blur-2xl transition-transform duration-200"
+        />
+
+        <div
+          onClick={onOpenFullscreen}
+          style={{ transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) scale(1.02)` }}
+          className="plate-container relative flex h-[170px] w-[170px] cursor-pointer items-center justify-center transition-transform duration-300 sm:h-[220px] sm:w-[220px] md:h-[320px] md:w-[320px]"
+        >
+          <div className="absolute inset-0 flex items-center justify-center rounded-full border border-white/5 bg-gradient-to-tr from-[#131117] to-[#2d2539] shadow-[inset_0_3px_12px_rgba(255,255,255,0.03),0_12px_35px_rgba(0,0,0,0.95)]">
+            <div className="flex h-[94%] w-[94%] items-center justify-center rounded-full border border-purple-500/10">
+              <div className="h-[86%] w-[86%] rounded-full border border-white/5 bg-gradient-to-b from-[#0e0c12] to-[#040405] shadow-[inset_0_0_15px_rgba(0,0,0,0.85)]" />
+            </div>
+          </div>
+
+          <div className="absolute z-10 flex h-[80%] w-[80%] items-center justify-center overflow-hidden rounded-full">
+            {dish.image_url ? (
+              <img src={dish.image_url} alt={dish.name} className="h-full w-full rounded-full object-cover shadow-2xl" />
+            ) : (
+              <div className="h-full w-full rounded-full bg-white/5" />
+            )}
+          </div>
+
+          {steamEnabled && !prefersReducedMotion() && (
+            <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center mix-blend-screen opacity-30">
+              <div className="h-1/2 w-1/2 animate-pulse rounded-full bg-gradient-to-t from-transparent via-white/10 to-transparent blur-xl" />
+            </div>
           )}
         </div>
-
-        <h1 className="font-display mb-2 text-2xl font-semibold text-gray-50">{dish.name}</h1>
-
-        <p className="mb-4 min-h-10 text-[0.88rem] text-gray-400">
-          {description.slice(0, typedLength)}
-          {typedLength < description.length && <span className="animate-pulse">|</span>}
-        </p>
-
-        <p
-          className="mb-6 bg-gradient-to-r from-amber-200 via-yellow-300 to-amber-400 bg-clip-text text-xl font-bold text-transparent"
-        >
-          {formatMMK(dish.price)}
-        </p>
-
-        <button
-          type="button"
-          disabled={!dish.is_available}
-          onClick={() => addToCart(dish)}
-          className="flex items-center gap-2 rounded-full px-7 py-3 text-sm font-bold text-white shadow-lg disabled:opacity-40"
-          style={{ background: `linear-gradient(135deg, var(--accent), var(--accent-dark))` }}
-        >
-          <Plus size={16} />
-          {dish.is_available ? 'Add to order' : 'Sold out'}
-        </button>
       </div>
     </div>
   );
-}
-
-function applyTilt(el, rotateX, rotateY) {
-  if (!el) return;
-  el.style.transform = `perspective(700px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
-}
-
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
 }
