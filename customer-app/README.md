@@ -1,113 +1,123 @@
-# Customer ordering page
+# customer-app
 
-Bootstrap-based, mobile-first, image-led menu. Opened by scanning a
-table's QR code:
+QR-scan ordering page for OneclickPos. A customer scans the code on
+their table, browses the menu, builds a cart, and places a real order
+that lands in the kitchen — no app install.
+
+Rebuilt from the previous static Bootstrap/vanilla-JS version into
+React + Vite + Tailwind. Functionally, the biggest change isn't the
+framework — it's that the page now actually talks to `cloud-api`. The
+old version only ever showed two hardcoded demo products and a fake
+"order submitted" alert; this one fetches the real menu and posts real
+orders (with a local-hub fallback if the cloud is unreachable).
+
+## Setup
+
+```bash
+npm install
+npm run dev
+```
+
+`npm run dev` runs plain Vite — no Vercel functions, so `api/config.js`
+never executes. Copy `.env.example` to `.env.local` and point
+`VITE_CLOUD_API_BASE` at a running `cloud-api` instance to get real
+data locally. Without it, the menu will show the "couldn't load" error
+screen, which is expected.
+
+To test the actual `/api/config` path (the same one production uses),
+run `vercel dev` instead, with `CLOUD_API_BASE` set in your Vercel
+project's environment variables.
+
+Either way, open the page with `?store=<a real store id>` in the URL —
+without it you'll see the "missing table code" screen. Add `&table=5`
+to also exercise the table badge.
+
+## Deploying
+
+Same as before: a Vercel project with `CLOUD_API_BASE` set in
+Settings → Environment Variables, pointed at your deployed `cloud-api`.
+`vercel.json` sets the build command and output directory explicitly,
+so Vercel doesn't need to guess. Changing `CLOUD_API_BASE` still just
+needs a redeploy, not a rebuild-from-source — `api/config.js` reads it
+at request time.
+
+**If this replaces the old static customer-app in an existing Vercel
+project**, double check the project's build settings picked up
+`vercel.json`'s `buildCommand`/`outputDirectory` rather than leftover
+"no build" settings from before.
+
+**mobile-app's `capacitor.config.json`** currently points `webDir` at
+`../customer-app` directly (the old raw static folder). Once this
+version is what ships, that needs to point at `../customer-app/dist`
+(the build output) instead, and `npx cap sync` needs to run after
+`npm run build`.
+
+## How a session starts
+
+A table's QR code encodes `https://your-domain.com/?store=<store
+id>&table=<table number>`. `table` is optional — a counter/takeaway
+code can omit it. The page reads both from the URL on load, fetches
+`GET /public/stores/:storeId/menu`, and renders from there. Nothing is
+hardcoded per-store; the same deployment serves every store.
+
+## Layouts and theme
+
+A store's `theme_config` (set in admin-app) controls two independent
+things:
+
+- **preset** — `green` (default) / `cozy` / `ice` / `custom`. Presets
+  are hand-picked accent + shade sets (`src/lib/theme.js`); `custom`
+  derives the same shade set from the store's own `primary_color` so
+  an arbitrary brand color still gets a coherent dark/light/pale trio
+  instead of always falling back to green's.
+- **layout** — `standard` (scrolling card list) or `stage` (a
+  single animated hero dish with a tap-to-swap grid below it, for
+  stores that want something more premium-feeling). Stage lazy-loads
+  its two Google Fonts (Cinzel, Padauk) only when a store actually
+  uses it.
+
+A `custom` preset can also set a background image or gradient
+(`background_image_url` wins if both are set — same rule the
+admin-app hint text describes).
+
+## Payment
+
+Two methods, matching what the menu endpoint provides: cash (pay at
+the table, no QR) and KBZPay (shows the store's static QR code,
+customer scans and pays via their own KBZPay app). There's no payment
+gateway integration here — placing the order records a `payments` row
+with `status: 'pending'`; reconciling that against what actually came
+in is a staff/admin-app job, not this page's.
+
+## Structure
 
 ```
-https://order.yourpos.com/?store=<store_id>&table=<table_number>
+src/
+  App.jsx              orchestrates data loading, theme, both layouts
+  lib/
+    api.js              fetchMenu, submitOrder (cloud → local-hub fallback)
+    theme.js             preset/shade resolution, background, lazy fonts
+    color.js              hex/HSL helpers for deriving custom shades
+    config.js               reads CLOUD_API_BASE, ?store=/?table=
+  context/CartContext.jsx  cart state (add/remove/qty), shared via useCart()
+  hooks/
+    useMenu.js            fetch + loading/error state + flattened lookups
+    useScrollSpy.js        active-category tracking for Standard layout
+  components/
+    Header.jsx              brand, table badge, category pills
+    MenuSection.jsx / ProductCard.jsx      Standard layout
+    StageHero.jsx / InteractiveStage.jsx   Stage layout (tilt, typewriter, steam)
+    ProductModal.jsx        qty + notes, adds to cart
+    CheckoutModal.jsx       review → payment → submit → confirmation
+    CartBar.jsx              floating summary, opens checkout
+    Modal.jsx                 shared dialog (backdrop, esc, scroll-lock)
 ```
 
-## UX
+## Known gaps
 
-- Sticky top bar with a horizontally-scrollable row of category pills.
-  Tapping a pill smooth-scrolls to that section; scrolling manually
-  updates the active pill automatically (IntersectionObserver), so
-  browsing works either by tapping or by scrolling -- "easy scroll
-  between sub-menus."
-- One product card per row: image on top, name, short description,
-  price, and a + button. All products for all categories are on one
-  continuously scrollable page -- the category pills are navigation
-  shortcuts, not separate pages.
-- Tapping a card opens a modal: larger image, description, a quantity
-  stepper, and a free-text comment field ("more sweet", "less spicy",
-  etc.) -- saved as `notes` on that order line and printed on the
-  kitchen ticket.
-- Adding an item shows a floating green bar at the bottom with the
-  running item count and total. Tapping it opens the cart, then payment
-  (cash or KBZPay QR), then a confirmation screen.
-
-## Menu theme
-
-Two independent choices, set by the owner in admin-app (Stores →
-create or Edit settings):
-
-- **Color**: preset (Green/Cozy/Ice) or Custom with their own accent
-  color, background gradient, or background image (drag-and-drop
-  upload, same mechanism as product photos). Applied at runtime via
-  CSS custom properties — this is a no-build static page, so there's
-  no per-store build step to bake colors in at deploy time.
-- **Layout**: Standard (the default scrolling card list) or **Stage**
-  — a dark, premium "hero dish" presentation with a large circular
-  plate view, gradient-gold pricing, and a lightweight CSS steam
-  effect. Tapping any card in the grid below updates the hero; the
-  hero's "Add to order" button opens the exact same product modal as
-  the standard layout, so quantity/notes/payment/local-hub-fallback
-  logic is identical between both layouts — nothing about ordering
-  changes, only the presentation.
-
-Stage layout lazy-loads two Google Fonts (Cinzel for display text,
-Padauk for Burmese) only when a store actually uses it — stores on the
-Standard layout never pay for that extra request. Deliberately doesn't
-include a canvas particle simulation, gyroscope tilt, or a typewriter
-text animation like some design references for this kind of view do —
-those add real weight and complexity (permission prompts, per-frame
-JS) for very little payoff on a page whose whole job is "let someone
-order food quickly on a weak connection."
-
-## Ambient music
-
-Set by the owner in admin-app (Stores → create or Edit settings) —
-now via drag-and-drop upload, not a pasted URL. Only plays if the
-store has it enabled (`ambient_audio_enabled`).
-
-Autoplay-with-sound is a browser platform policy, not something any
-site can force. Playback is attempted immediately on load (succeeds on
-desktop browsers, PWAs, and returning visitors with high engagement)
-and falls back to starting on the customer's first tap if that's
-blocked — quiet default volume (35%), looping. A small toggle button
-lets them mute it; that choice is remembered for the session.
-
-**Keep the file small**: since it loops, a short clip works fine —
-15–30 seconds at 96–128kbps MP3/OGG typically lands well under 500KB,
-which matters given the same connectivity constraints the rest of this
-app is built around. A multi-minute high-bitrate track defeats the
-"small MB" goal and will be slow to start on weak connections.
-
-## Availability
-
-Items an owner marks sold out (Products tab, per store) stay visible
-on the menu rather than disappearing — grayed out with a "Sold out"
-badge and no add button — so customers aren't left wondering where a
-usually-available item went.
-
-## Dependencies
-
-- `product.image_url` and `product.description` -- added to `schema.sql`
-  and the admin dashboard's product form. Products created before this
-  change will render with a plain placeholder image and no description
-  until edited.
-- `order_items.notes` -- added to `schema.sql`, both cloud order routes,
-  and the local hub, so a customer's comment survives all the way to
-  the printed ticket.
-- `GET /public/stores/:id/menu` and `POST /public/stores/:id/orders` --
-  same cloud endpoints as before, now also returning/accepting
-  `description`, `image_url`, and `notes`.
-
-## Design
-
-Green theme as specified -- a single accent green (#1B7A3D) with a pale
-tint for image placeholders, kept to two shades plus neutral text so
-the accent stays legible. Bootstrap 5 (CDN, no build step) for layout
-primitives and the modal/dialog behavior; custom CSS on top for the
-card, pill, and cart-bar look. Fast-loading images: cards use
-loading="lazy" so only visible rows fetch images as the customer
-scrolls, and a lightweight inline SVG placeholder (no network request)
-covers products without an image yet.
-
-The cloud API URL is set via a real environment variable
-(`CLOUD_API_BASE`), not hardcoded in a committed file. A serverless
-function (`api/config.js`) reads it and serves it to the page. Set it
-in the Vercel project's Environment Variables — same place/pattern as
-`cloud-api`'s `DATABASE_URL` — and it takes effect on redeploy, no code
-edits needed. For local testing with `vercel dev`, copy `.env.example`
-to `.env` and it's picked up automatically.
+- No offline queue — if both the cloud and local hub are unreachable,
+  the order just fails with a message to try again. The hub's own
+  pull-when-back-online sync (mentioned in the top-level README) is
+  separate infrastructure this page doesn't attempt to replace.
+- Payment status is always recorded as `pending`; nothing here marks
+  it `paid`.

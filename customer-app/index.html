@@ -4,70 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <title>Order</title>
-  <link rel="preconnect" href="https://cdn.jsdelivr.net">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <meta name="theme-color" content="#1B7A3D">
+  <!-- Sets window.__POS_CONFIG__ from the real CLOUD_API_BASE env var
+       before React boots — same runtime-config pattern as before, so
+       changing the env var in Vercel + redeploy still needs no code
+       edits or rebuild-from-source. See api/config.js. -->
+  <script src="/api/config"></script>
 </head>
 <body>
-
-<header class="topbar sticky-top">
-  <div class="d-flex align-items-center justify-content-between px-3 py-2">
-    <span class="brand">Order here</span>
-    <span class="table-badge" id="tableBadge"></span>
-  </div>
-  <nav class="category-nav" id="categoryNav"></nav>
-</header>
-
-<!-- Stage layout hero (Theme 2) -->
-<section id="stageSection" class="stage-section" hidden>
-  <div class="stage-plate-wrap">
-    <div class="stage-shadow"></div>
-    <div class="stage-plate">
-      <img id="stageImg" src="" alt="Featured dish">
-      <div class="stage-steam s1"></div>
-      <div class="stage-steam s2"></div>
-    </div>
-  </div>
-  <div class="stage-hud">
-    <div class="stage-badge" id="stageBadge">Chef's Choice</div>
-    <div class="stage-title" id="stageTitle"></div>
-    <div class="stage-desc" id="stageDesc"></div>
-    <div class="stage-price" id="stagePrice"></div>
-    <button class="stage-add-btn" id="stageAddBtn" type="button">Add to order</button>
-  </div>
-</section>
-
-<main id="menu" class="pb-5"></main>
-
-<div class="state-message" id="loadingMessage">Loading menu…</div>
-
-<!-- Floating cart bar -->
-<button class="cart-bar" id="cartBar" hidden type="button">
-  <span id="cartCount">0 items</span>
-  <span id="cartTotal">0 MMK</span>
-</button>
-
-<!-- Product detail modal -->
-<div class="modal fade" id="productModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content" id="productModalContent"></div>
-  </div>
-</div>
-
-<!-- Cart / checkout modal -->
-<div class="modal fade" id="checkoutModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-    <div class="modal-content" id="checkoutModalContent"></div>
-  </div>
-</div>
-
-<!-- Ambient music toggle -->
-<button class="ambient-toggle" id="ambientToggle" hidden aria-label="Toggle background music">&#9834;</button>
-<audio id="ambientAudio" loop preload="none"></audio>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="/api/config"></script>
-<script src="app.js"></script>
-<script src="InteractiveStage.js"></script>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
 </body>
 </html>

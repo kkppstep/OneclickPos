@@ -1,0 +1,101 @@
+@import "tailwindcss";
+
+@theme {
+  /* Stage layout's display faces — lazy-loaded via a <link> that
+     src/lib/theme.js injects only when a store actually uses Stage,
+     so Standard-layout stores never pay for the extra font request. */
+  --font-display: "Cinzel", serif;
+  --font-burmese: "Padauk", sans-serif;
+}
+
+:root {
+  /* Per-store theme values. Real defaults come from the API's
+     theme_config on every load — these are just the pre-fetch
+     fallback so the page isn't unstyled for a frame. */
+  --accent: #1b7a3d;
+  --accent-dark: #125c2e;
+  --accent-light: #eaf7ee;
+  --accent-pale: #dcf0e2;
+}
+
+body {
+  padding-bottom: 96px; /* room for the floating cart bar */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Hide scrollbar on the horizontally-scrollable category pill row,
+   functionality stays, just no visible track. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---------- Stage hero: rising steam, two staggered wisps ---------- */
+@keyframes steam-rise {
+  0% {
+    transform: translateY(0) scale(0.8);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.35;
+  }
+  100% {
+    transform: translateY(-60px) scale(1.3);
+    opacity: 0;
+  }
+}
+.stage-steam {
+  animation: steam-rise 4.5s ease-in infinite;
+}
+
+/* ---------- Modal / sheet entrance transitions ---------- */
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+@keyframes scale-up {
+  from {
+    transform: scale(0.94);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-slide-up {
+  animation: slide-up 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.animate-scale-up {
+  animation: scale-up 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.animate-fade-in {
+  animation: fade-in 0.18s ease-out forwards;
+}
+
+/* Respect reduced-motion: kill decorative animation, keep the
+   underlying UI fully usable. */
+@media (prefers-reduced-motion: reduce) {
+  .stage-steam,
+  .animate-slide-up,
+  .animate-scale-up,
+  .animate-fade-in {
+    animation: none !important;
+  }
+}
