@@ -84,6 +84,7 @@ let liveOrdersInterval = null;
 function switchTab(tab) {
   if (tab !== 'login' && !state.token) tab = 'login';
   if (liveOrdersInterval) { clearInterval(liveOrdersInterval); liveOrdersInterval = null; }
+  stopNewOrderAlert();
   document.querySelectorAll('.nav-item').forEach((el) => el.classList.toggle('active', el.dataset.tab === tab));
   updateContextBar();
   TABS[tab]();
@@ -440,9 +441,57 @@ async function renderCategories() {
 
   const data = await api('/admin/categories');
   state.categories = data.categories;
+  renderCategoriesTable();
+}
+
+function renderCategoriesTable() {
   document.getElementById('categoriesTable').innerHTML = `<table><tbody>${
-    state.categories.map((c) => `<tr><td>${escapeHtml(c.name)}</td></tr>`).join('')
+    state.categories.map((c) => `
+      <tr id="cat-row-${c.id}">
+        <td><span class="cat-name-text">${escapeHtml(c.name)}</span></td>
+        <td style="text-align:right;">
+          <button class="btn secondary rename-cat" data-id="${c.id}">Rename</button>
+          <button class="btn danger delete-cat" data-id="${c.id}">Delete</button>
+        </td>
+      </tr>
+    `).join('')
   }</tbody></table>`;
+
+  document.querySelectorAll('.rename-cat').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const cat = state.categories.find((c) => c.id === btn.dataset.id);
+      const row = document.getElementById(`cat-row-${cat.id}`);
+      row.querySelector('td').innerHTML = `<input id="renameInput-${cat.id}" value="${escapeHtml(cat.name)}">`;
+      row.querySelector('td:last-child').innerHTML = `
+        <button class="btn save-rename-cat" data-id="${cat.id}">Save</button>
+        <button class="btn secondary cancel-rename-cat">Cancel</button>
+      `;
+      row.querySelector('.save-rename-cat').addEventListener('click', async () => {
+        const name = document.getElementById(`renameInput-${cat.id}`).value.trim();
+        if (!name) return;
+        try {
+          await api(`/admin/categories/${cat.id}`, { method: 'PATCH', body: { name } });
+          renderCategories();
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+      row.querySelector('.cancel-rename-cat').addEventListener('click', renderCategoriesTable);
+    });
+  });
+
+  document.querySelectorAll('.delete-cat').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const cat = state.categories.find((c) => c.id === btn.dataset.id);
+      if (!confirm(`Delete "${cat.name}"? Products in it become uncategorized, not deleted.`)) return;
+      try {
+        await api(`/admin/categories/${btn.dataset.id}`, { method: 'DELETE' });
+        renderCategories();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  });
 }
 
 // ============================================================
@@ -462,7 +511,14 @@ async function renderProducts() {
         ${dropZoneHtml('productImageDrop', 'Drag an image here, or click to browse')}
         <input id="productImageUrl" placeholder="https://.../shan-noodles.jpg">
       </div>
-      <div class="field"><label>Price (MMK)</label><input id="productPrice" type="number"></div>
+      <div style="display:flex;gap:12px;">
+        <div class="field" style="flex:1;"><label>Price (MMK)</label><input id="productPrice" type="number"></div>
+        <div class="field" style="flex:1;"><label>Cost (MMK, optional)</label><input id="productCost" type="number"></div>
+      </div>
+      <div style="display:flex;gap:12px;">
+        <div class="field" style="flex:1;"><label>SKU (optional)</label><input id="productSku"></div>
+        <div class="field" style="flex:1;"><label>Barcode (optional)</label><input id="productBarcode"></div>
+      </div>
       <div class="field"><label>Category</label><select id="productCategory"><option value="">— none —</option>${categoryOptions}</select></div>
       <button class="btn" id="createProductBtn">Add product</button>
     </div>
@@ -475,35 +531,56 @@ async function renderProducts() {
     const name = document.getElementById('productName').value.trim();
     const price = Number(document.getElementById('productPrice').value);
     if (!name || !price) return;
-    await api('/admin/products', {
-      method: 'POST',
-      body: {
-        name,
-        price,
-        description: document.getElementById('productDescription').value.trim() || null,
-        image_url: document.getElementById('productImageUrl').value.trim() || null,
-        category_id: document.getElementById('productCategory').value || null,
-      },
-    });
-    renderProducts();
+    const cost = document.getElementById('productCost').value;
+    try {
+      await api('/admin/products', {
+        method: 'POST',
+        body: {
+          name,
+          price,
+          description: document.getElementById('productDescription').value.trim() || null,
+          image_url: document.getElementById('productImageUrl').value.trim() || null,
+          sku: document.getElementById('productSku').value.trim() || null,
+          barcode: document.getElementById('productBarcode').value.trim() || null,
+          cost: cost ? Number(cost) : null,
+          category_id: document.getElementById('productCategory').value || null,
+        },
+      });
+      renderProducts();
+    } catch (err) {
+      alert(err.message);
+    }
   });
 
+  await loadProductsTable();
+}
+
+async function loadProductsTable() {
   const data = await api(`/admin/products${state.storeId ? `?store_id=${state.storeId}` : ''}`);
   state.products = data.products;
+  renderProductsTable();
+}
+
+function renderProductsTable() {
   const rows = state.products.map((p) => `
-    <tr>
+    <tr id="product-row-${p.id}">
       <td>${escapeHtml(p.name)}</td>
       <td>${Number(p.price).toLocaleString()} MMK</td>
       <td><span class="pill ${p.is_active ? 'synced' : ''}">${p.is_active ? 'Active' : 'Inactive'}</span></td>
-      <td>${
-        state.storeId
-          ? `<button class="btn secondary toggle-availability" data-id="${p.id}" data-available="${p.is_available}">${p.is_available ? 'Mark sold out' : 'Mark available'}</button>`
-          : `<span style="font-size:0.78rem;color:var(--text-muted)">Select a store to manage</span>`
-      }</td>
+      <td>
+        ${
+          state.storeId
+            ? `<button class="btn secondary toggle-availability" data-id="${p.id}" data-available="${p.is_available}">${p.is_available ? 'Mark sold out' : 'Mark available'}</button>`
+            : `<span style="font-size:0.78rem;color:var(--text-muted)">Select a store to manage</span>`
+        }
+        <button class="btn secondary edit-product" data-id="${p.id}">Edit</button>
+        <button class="btn danger delete-product" data-id="${p.id}">Delete</button>
+      </td>
     </tr>
+    <tr class="edit-row" id="product-edit-row-${p.id}" hidden><td colspan="4"></td></tr>
   `).join('');
   document.getElementById('productsTable').innerHTML = `
-    <table><thead><tr><th>Name</th><th>Price</th><th>Status</th><th>Availability</th></tr></thead><tbody>${rows}</tbody></table>
+    <table><thead><tr><th>Name</th><th>Price</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table>
   `;
 
   document.querySelectorAll('.toggle-availability').forEach((btn) => {
@@ -513,8 +590,79 @@ async function renderProducts() {
         method: 'PATCH',
         body: { is_available: nextAvailable },
       });
-      renderProducts();
+      loadProductsTable();
     });
+  });
+
+  document.querySelectorAll('.edit-product').forEach((btn) => {
+    btn.addEventListener('click', () => openProductEditRow(btn.dataset.id));
+  });
+
+  document.querySelectorAll('.delete-product').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const product = state.products.find((p) => p.id === btn.dataset.id);
+      if (!confirm(`Delete "${product.name}"?`)) return;
+      try {
+        const result = await api(`/admin/products/${btn.dataset.id}`, { method: 'DELETE' });
+        if (result.deactivated) alert(`"${product.name}" has order history, so it was deactivated instead of deleted — it's off the menu either way.`);
+        loadProductsTable();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  });
+}
+
+function openProductEditRow(productId) {
+  const product = state.products.find((p) => p.id === productId);
+  const categoryOptions = state.categories.map((c) => `<option value="${c.id}" ${c.id === product.category_id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('');
+  const row = document.getElementById(`product-edit-row-${productId}`);
+  row.hidden = false;
+  row.querySelector('td').innerHTML = `
+    <div class="card" style="margin:8px 0;">
+      <div class="field"><label>Name</label><input id="editName-${productId}" value="${escapeHtml(product.name)}"></div>
+      <div class="field"><label>Description</label><input id="editDescription-${productId}" value="${escapeHtml(product.description || '')}"></div>
+      <div class="field"><label>Image URL</label>
+        ${dropZoneHtml(`editImageDrop-${productId}`, 'Drag an image here, or click to browse')}
+        <input id="editImageUrl-${productId}" value="${escapeHtml(product.image_url || '')}">
+      </div>
+      <div style="display:flex;gap:12px;">
+        <div class="field" style="flex:1;"><label>Price (MMK)</label><input id="editPrice-${productId}" type="number" value="${product.price}"></div>
+        <div class="field" style="flex:1;"><label>Cost (MMK)</label><input id="editCost-${productId}" type="number" value="${product.cost || ''}"></div>
+      </div>
+      <div style="display:flex;gap:12px;">
+        <div class="field" style="flex:1;"><label>SKU</label><input id="editSku-${productId}" value="${escapeHtml(product.sku || '')}"></div>
+        <div class="field" style="flex:1;"><label>Barcode</label><input id="editBarcode-${productId}" value="${escapeHtml(product.barcode || '')}"></div>
+      </div>
+      <div class="field"><label>Category</label><select id="editCategory-${productId}"><option value="">— none —</option>${categoryOptions}</select></div>
+      <div class="field"><label><input type="checkbox" id="editIsActive-${productId}" style="width:auto;margin-right:6px;" ${product.is_active ? 'checked' : ''}>Active (shows in the catalog at all)</label></div>
+      <button class="btn" id="saveProductEdit-${productId}">Save</button>
+      <button class="btn secondary" id="cancelProductEdit-${productId}">Cancel</button>
+    </div>
+  `;
+  attachUploadZone(`editImageDrop-${productId}`, `editImageUrl-${productId}`, `editImageDrop-${productId}-status`);
+  document.getElementById(`cancelProductEdit-${productId}`).addEventListener('click', () => { row.hidden = true; });
+  document.getElementById(`saveProductEdit-${productId}`).addEventListener('click', async () => {
+    const cost = document.getElementById(`editCost-${productId}`).value;
+    try {
+      await api(`/admin/products/${productId}`, {
+        method: 'PATCH',
+        body: {
+          name: document.getElementById(`editName-${productId}`).value.trim(),
+          description: document.getElementById(`editDescription-${productId}`).value.trim() || null,
+          image_url: document.getElementById(`editImageUrl-${productId}`).value.trim() || null,
+          sku: document.getElementById(`editSku-${productId}`).value.trim() || null,
+          barcode: document.getElementById(`editBarcode-${productId}`).value.trim() || null,
+          price: Number(document.getElementById(`editPrice-${productId}`).value),
+          cost: cost ? Number(cost) : null,
+          category_id: document.getElementById(`editCategory-${productId}`).value || null,
+          is_active: document.getElementById(`editIsActive-${productId}`).checked,
+        },
+      });
+      loadProductsTable();
+    } catch (err) {
+      alert(err.message);
+    }
   });
 }
 
@@ -696,14 +844,101 @@ async function renderStaffTable() {
 // ============================================================
 // Live orders — the kitchen/staff working view. Polls every 5s.
 // ============================================================
+let alertAudioCtx = null; // created on the "Enable alerts" click (user gesture) so later polls can reuse it without one
+let alertLoopInterval = null;
+let notifiedIds = new Set(); // orders we've already alerted on this session, so a poll doesn't re-alert the same order
+
+function playAlertBeep() {
+  if (!alertAudioCtx) return;
+  const now = alertAudioCtx.currentTime;
+  const osc = alertAudioCtx.createOscillator();
+  const gain = alertAudioCtx.createGain();
+  osc.connect(gain);
+  gain.connect(alertAudioCtx.destination);
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(880, now);
+  gain.gain.setValueAtTime(0.12, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+  osc.start(now);
+  osc.stop(now + 0.35);
+}
+
+function startNewOrderAlert(count) {
+  document.getElementById('newOrderBanner')?.remove();
+  const banner = document.createElement('div');
+  banner.id = 'newOrderBanner';
+  banner.className = 'new-order-banner';
+  banner.innerHTML = `${count} new order${count > 1 ? 's' : ''} — <button id="dismissNewOrderBanner">Dismiss</button>`;
+  document.getElementById('content').prepend(banner);
+  document.getElementById('dismissNewOrderBanner').addEventListener('click', stopNewOrderAlert);
+
+  if (Notification?.permission === 'granted') {
+    new Notification('New order received', { body: `${count} new order${count > 1 ? 's' : ''} on Live orders`, tag: 'new-order' });
+  }
+
+  playAlertBeep();
+  clearInterval(alertLoopInterval);
+  alertLoopInterval = setInterval(playAlertBeep, 1400);
+
+  let flashOn = false;
+  clearInterval(window._titleFlashInterval);
+  const baseTitle = document.title.replace(/^🔔 /, '');
+  window._titleFlashInterval = setInterval(() => {
+    document.title = flashOn ? baseTitle : `🔔 ${baseTitle}`;
+    flashOn = !flashOn;
+  }, 1000);
+}
+
+function stopNewOrderAlert() {
+  document.getElementById('newOrderBanner')?.remove();
+  clearInterval(alertLoopInterval);
+  alertLoopInterval = null;
+  clearInterval(window._titleFlashInterval);
+  document.title = document.title.replace(/^🔔 /, '');
+}
+
 async function renderLiveOrders() {
   if (state.features.live_orders !== true) { setContent(`<h1>Live orders</h1><div class="state-message">This feature isn't enabled for your account yet. Contact the platform operator.</div>`); return; }
   if (!state.storeId) { setContent(`<h1>Live orders</h1><div class="state-message">Select a store first.</div>`); return; }
-  setContent(`<h1>Live orders</h1><div class="subtitle">Refreshes automatically.</div><div id="liveOrdersList">Loading…</div>`);
+
+  notifiedIds = new Set(); // fresh session each time this tab is opened
+  stopNewOrderAlert();
+
+  setContent(`
+    <h1>Live orders</h1>
+    <div class="subtitle">Refreshes automatically.</div>
+    ${
+      Notification && Notification.permission === 'default'
+        ? `<button class="btn secondary" id="enableAlertsBtn" style="margin-bottom:16px;">Enable sound + popup alerts for new orders</button>`
+        : ''
+    }
+    <div id="liveOrdersList">Loading…</div>
+  `);
+
+  document.getElementById('enableAlertsBtn')?.addEventListener('click', async () => {
+    if (!alertAudioCtx) alertAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    playAlertBeep();
+    if (Notification) await Notification.requestPermission();
+    document.getElementById('enableAlertsBtn').remove();
+  });
+
+  let firstLoad = true;
 
   const load = async () => {
     try {
       const data = await api(`/admin/stores/${state.storeId}/live-orders`);
+
+      if (firstLoad) {
+        data.orders.forEach((o) => notifiedIds.add(o.id));
+        firstLoad = false;
+      } else {
+        const freshOrders = data.orders.filter((o) => !notifiedIds.has(o.id));
+        if (freshOrders.length > 0) {
+          freshOrders.forEach((o) => notifiedIds.add(o.id));
+          startNewOrderAlert(freshOrders.length);
+        }
+      }
+
       renderLiveOrdersList(data.orders);
     } catch (err) {
       document.getElementById('liveOrdersList').innerHTML = `<div class="state-message error">${escapeHtml(err.message)}</div>`;
@@ -737,27 +972,55 @@ function renderLiveOrdersList(orders) {
             <div style="font-weight:700;">${o.table_number ? `Table ${escapeHtml(o.table_number)}` : escapeHtml(o.channel)}</div>
             <div style="font-size:0.78rem;color:var(--text-muted);">${new Date(o.created_at).toLocaleTimeString()}</div>
           </div>
-          ${pendingPayment ? `<span class="pill pending">Payment pending</span>` : `<span class="pill synced">Paid</span>`}
+          ${pendingPayment ? `<span class="pill pending">Preparing</span>` : `<span class="pill synced">Payment confirmed</span>`}
         </div>
         <div style="margin:10px 0;">${itemsHtml}</div>
         <div style="display:flex;gap:8px;">
           ${pendingPayment ? `<button class="btn secondary confirm-payment-btn" data-id="${o.id}">Confirm payment</button>` : ''}
           <button class="btn complete-order-btn" data-id="${o.id}">Mark completed</button>
         </div>
+        <div class="action-error" id="order-error-${o.id}"></div>
       </div>
     `;
   }).join('');
 
   listEl.querySelectorAll('.confirm-payment-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
-      await api(`/admin/orders/${btn.dataset.id}/confirm-payment`, { method: 'POST' });
+      btn.disabled = true;
+      try {
+        await api(`/admin/orders/${btn.dataset.id}/confirm-payment`, { method: 'POST' });
+        await refreshLiveOrdersNow();
+      } catch (err) {
+        btn.disabled = false;
+        document.getElementById(`order-error-${btn.dataset.id}`).textContent = err.message;
+      }
     });
   });
   listEl.querySelectorAll('.complete-order-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
-      await api(`/admin/orders/${btn.dataset.id}/status`, { method: 'POST', body: { status: 'completed' } });
+      btn.disabled = true;
+      try {
+        await api(`/admin/orders/${btn.dataset.id}/status`, { method: 'POST', body: { status: 'completed' } });
+        await refreshLiveOrdersNow();
+      } catch (err) {
+        btn.disabled = false;
+        document.getElementById(`order-error-${btn.dataset.id}`).textContent = err.message;
+      }
     });
   });
+}
+
+// Re-fetches immediately after an action instead of waiting for the
+// next 5s poll tick, without re-triggering the new-order alert for
+// orders we already know about.
+async function refreshLiveOrdersNow() {
+  try {
+    const data = await api(`/admin/stores/${state.storeId}/live-orders`);
+    data.orders.forEach((o) => notifiedIds.add(o.id));
+    renderLiveOrdersList(data.orders);
+  } catch (err) {
+    document.getElementById('liveOrdersList').innerHTML = `<div class="state-message error">${escapeHtml(err.message)}</div>`;
+  }
 }
 
 
@@ -910,6 +1173,15 @@ async function tryGoogleSessionExchange() {
     console.error('[auth] google exchange failed:', err.message);
     return { ok: false, error: err.message };
   }
+}
+
+// ============================================================
+// PWA install support
+// ============================================================
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((err) => console.error('[sw] registration failed:', err.message));
+  });
 }
 
 // ============================================================

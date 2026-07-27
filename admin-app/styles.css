@@ -106,6 +106,33 @@ h1 { font-size: 1.35rem; margin: 0 0 6px; letter-spacing: -0.01em; }
 .btn:active { transform: scale(0.98); }
 .btn.secondary { background: transparent; color: var(--ink); border: 1px solid var(--ivory-dim); }
 .btn.secondary:hover { background: var(--ivory-dim); }
+.btn.danger { background: transparent; color: var(--red); border: 1px solid var(--red-soft); }
+.btn.danger:hover { background: #fdf2f0; }
+
+.action-error { color: var(--red); font-size: 0.78rem; margin-top: 8px; }
+
+.new-order-banner {
+  background: var(--red);
+  color: #fff;
+  padding: 12px 18px;
+  border-radius: 8px;
+  margin-bottom: 18px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  animation: fadeIn 0.2s ease;
+}
+.new-order-banner button {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: 6px;
+}
+.new-order-banner button:hover { background: rgba(255, 255, 255, 0.32); }
 
 /* ---------- Tables ---------- */
 table { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 0.88rem; }
