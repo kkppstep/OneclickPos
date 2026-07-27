@@ -126,6 +126,31 @@ router.get('/admin/categories', authenticateUser, async (req, res) => {
   res.json({ categories: rows });
 });
 
+router.patch('/admin/categories/:id', authenticateUser, requireTenantRole(['owner', 'manager']), async (req, res) => {
+  const { name, sort_order } = req.body;
+  const { rows } = await db.query(
+    `UPDATE categories SET
+       name = COALESCE($3, name),
+       sort_order = COALESCE($4, sort_order)
+     WHERE id = $1 AND tenant_id = $2 RETURNING *`,
+    [req.params.id, req.user.tenant_id, name || null, sort_order === undefined ? null : sort_order]
+  );
+  if (rows.length === 0) return res.status(404).json({ error: 'category_not_found' });
+  res.json(rows[0]);
+});
+
+// Safe to hard-delete unconditionally — products.category_id is
+// ON DELETE SET NULL, so any products in this category just become
+// uncategorized rather than blocking the delete.
+router.delete('/admin/categories/:id', authenticateUser, requireTenantRole(['owner', 'manager']), async (req, res) => {
+  const { rows } = await db.query(
+    'DELETE FROM categories WHERE id = $1 AND tenant_id = $2 RETURNING id',
+    [req.params.id, req.user.tenant_id]
+  );
+  if (rows.length === 0) return res.status(404).json({ error: 'category_not_found' });
+  res.json({ id: req.params.id, deleted: true });
+});
+
 // ---------- Products ----------
 router.post('/admin/products', authenticateUser, requireTenantRole(['owner', 'manager']), async (req, res) => {
   const { category_id, name, description, image_url, price, cost, sku, barcode } = req.body;
@@ -177,19 +202,53 @@ router.patch(
 );
 
 router.patch('/admin/products/:id', authenticateUser, requireTenantRole(['owner', 'manager']), async (req, res) => {
-  const { name, price, is_active, category_id } = req.body;
+  const { name, description, image_url, sku, barcode, price, cost, is_active, category_id } = req.body;
   const { rows } = await db.query(
     `UPDATE products SET
        name = COALESCE($3, name),
-       price = COALESCE($4, price),
-       is_active = COALESCE($5, is_active),
-       category_id = COALESCE($6, category_id),
+       description = COALESCE($4, description),
+       image_url = COALESCE($5, image_url),
+       sku = COALESCE($6, sku),
+       barcode = COALESCE($7, barcode),
+       price = COALESCE($8, price),
+       cost = COALESCE($9, cost),
+       is_active = COALESCE($10, is_active),
+       category_id = COALESCE($11, category_id),
        updated_at = now()
      WHERE id = $1 AND tenant_id = $2 RETURNING *`,
-    [req.params.id, req.user.tenant_id, name, price, is_active, category_id]
+    [req.params.id, req.user.tenant_id, name, description, image_url, sku, barcode, price, cost, is_active, category_id]
   );
   if (rows.length === 0) return res.status(404).json({ error: 'product_not_found' });
   res.json(rows[0]);
+});
+
+// A product that's never been ordered deletes cleanly. One that has
+// order history can't — order_items.product_id has no ON DELETE
+// clause (RESTRICT), on purpose, so a sale never loses its record of
+// what was actually sold. Rather than surface that as a confusing
+// foreign-key error, catch it (Postgres 23503) and deactivate instead
+// — same end result the owner wants (gone from the menu), without
+// touching order history.
+router.delete('/admin/products/:id', authenticateUser, requireTenantRole(['owner', 'manager']), async (req, res) => {
+  try {
+    const { rows } = await db.query(
+      'DELETE FROM products WHERE id = $1 AND tenant_id = $2 RETURNING id',
+      [req.params.id, req.user.tenant_id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'product_not_found' });
+    res.json({ id: req.params.id, deleted: true });
+  } catch (err) {
+    if (err.code === '23503') {
+      const { rows } = await db.query(
+        `UPDATE products SET is_active = false, updated_at = now() WHERE id = $1 AND tenant_id = $2 RETURNING id`,
+        [req.params.id, req.user.tenant_id]
+      );
+      if (rows.length === 0) return res.status(404).json({ error: 'product_not_found' });
+      return res.json({ id: req.params.id, deleted: false, deactivated: true });
+    }
+    console.error('[admin] product delete failed:', err.message);
+    res.status(500).json({ error: 'product_delete_failed' });
+  }
 });
 
 // ---------- Orders ----------
