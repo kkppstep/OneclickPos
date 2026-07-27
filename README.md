@@ -1,91 +1,111 @@
-# POS platform (Myanmar-ready, offline-resilient)
+# Admin / owner dashboard
 
-Four pieces, three deployment targets:
+A static, framework-free dashboard for setting up stores, catalog, hub
+devices, and table QR codes -- and viewing recent orders.
 
-| Folder | What it is | Deploys to |
-|---|---|---|
-| `schema.sql` | Full Postgres schema | run once against your database |
-| `create-platform-admin.sql` | Creates your platform-operator login | run once, edit the values first |
-| `cloud-api/` | Order intake, catalog, admin API | **Vercel** (serverless) |
-| `customer-app/` | QR-scan ordering page (menu, cart, checkout) | **Vercel** (static) |
-| `admin-app/` | Owner/admin dashboard, plus a separate platform-admin console at `/platform/` (unlinked from the owner app) | **Vercel** (static) |
-| `mobile-app/` | Capacitor iOS wrapper around `customer-app` | Xcode / App Store (optional, secondary channel — see its README) |
-| `local-hub/` | Store-side service — prints receipts, drives the cash drawer, keeps the store working through internet outages | **NOT Vercel** — runs on a small PC or Raspberry Pi physically inside each store |
+**Two genuinely separate apps live in this folder, on purpose:**
 
-`local-hub` can't be serverless: it needs a persistent local database
-and a real connection to store hardware (printer, cash drawer). It's a
-separate, always-on deployment per store, not part of the web deploy.
+- `/` (this folder's `index.html` + `app.js`) — the shop-owner app.
+  Nothing about the platform-admin console is visible or reachable
+  from here — no button, no link, no hint it exists.
+- `/platform/` (`platform/index.html` + `platform/platform.js`) — the
+  platform-admin console (you, the operator). Separate login, separate
+  token, separate JavaScript file. Reaching it means typing the URL
+  directly (e.g. `https://your-admin-app.vercel.app/platform/`), not
+  clicking anything in the owner app.
 
-## ⚠️ Required one-time setup: Google OAuth
+They share this one Vercel deployment (and `styles.css`, and the
+`/api/config` endpoint) purely for deploy convenience — there's no
+code-level connection between them beyond that.
 
-This is an external dashboard step (Google Cloud Console + Supabase),
-not something any deploy command handles — see
-`cloud-api/README.md`'s "Required one-time setup: Google OAuth" section
-for the exact steps. Do this **before** step 2 below, or owner
-sign-in won't work and will fail without an obvious reason why.
+## ⚠️ Required one-time setup: Google sign-in
 
-## Deployment order
+Owner sign-up/sign-in works via Google, and it needs external
+configuration before it'll work -- see `cloud-api/README.md`'s "Required
+one-time setup: Google OAuth" section for the exact steps (Google Cloud
+Console + Supabase dashboard). Also set `SUPABASE_URL` and
+`SUPABASE_ANON_KEY` as Vercel environment variables on **this** project
+(admin-app) -- the anon key is Supabase's public client key, safe to
+expose in the browser, distinct from the service_role key used
+server-side in `cloud-api`.
 
-1. **Database** — create a Postgres database (Neon, Supabase, or
-   self-hosted) and run `schema.sql` against it. If you deploy `cloud-api`
-   to Vercel, use a connection-pooling endpoint (e.g. Supabase's
-   pgbouncer URL) as `DATABASE_URL` — see `cloud-api/src/db.js`. Also
-   create a Storage bucket named `uploads` in Supabase (Storage → New
-   bucket), set to **Public** — this is what drag-and-drop image/audio
-   uploads write to. Finally, edit and run `create-platform-admin.sql`
-   once to create your own platform-operator login — there's no API
-   endpoint for this by design, it's a direct SQL insert.
+## First-time setup for a shop owner
 
-2. **`cloud-api`** — `vercel deploy` from inside `cloud-api/`. Set
-   `DATABASE_URL`, `JWT_SECRET`, `PLATFORM_JWT_SECRET`, `SUPABASE_URL`,
-   `SUPABASE_SERVICE_ROLE_KEY` as environment
-   variables in the Vercel project. Note the deployed URL.
+1. In the Vercel project's Environment Variables, set `CLOUD_API_BASE`
+   to your deployed `cloud-api` URL — a serverless function
+   (`api/config.js`) reads it and pre-fills the Log in screen's URL
+   field automatically. For local testing with `vercel dev`, copy
+   `.env.example` to `.env`.
+2. Open the deployed page and click **Sign in with Google**. A
+   first-time sign-in automatically creates a new tenant (business)
+   with a placeholder name and makes that Google account its owner —
+   no key, no separate signup form. Rename the business from the
+   **Business** tab afterward.
+3. New businesses start with the extra features (Staff, Live Orders,
+   Analytics) **locked** — a platform admin has to turn them on. This
+   is intentional, not a bug: see "Feature permissions" below.
 
-3. **`admin-app`** — `vercel deploy` from inside `admin-app/`. In that
-   Vercel project's Environment Variables, set `CLOUD_API_BASE` to your
-   `cloud-api` URL from step 2, plus `SUPABASE_URL` and
-   `SUPABASE_ANON_KEY` (the public anon key, not service_role — needed
-   for the Google sign-in button). A serverless function reads these
-   and pre-fills the Log in screen automatically; change them and
-   redeploy, no code edits needed.
+## Platform admin (you, the operator)
 
-   Open the deployed page and click **Sign in with Google** to create
-   your first business — that's the only way a business/tenant gets
-   created, no manual alternative. New businesses start with the extra
-   features (Staff, Live Orders, Analytics) locked until you enable
-   them — see the next paragraph.
+Go directly to `/platform/` (not linked from anywhere in the owner
+app). There's no sign-up screen here by design — your account is
+created by running `create-platform-admin.sql` directly against the
+database (see the root README).
 
-   Separately — and this is deliberately **not linked from anywhere in
-   that owner app** — go directly to `<your-admin-app-url>/platform/`
-   and log in with the account you created in step 1. This is the
-   platform-operator console: every tenant's subscription status,
-   feature permissions, and individual user accounts (activate/
-   deactivate, reset password) live here, completely apart from the
-   shop-owner UI.
+1. **Tenants & accounts** — every business on the platform:
+   - A subscription status dropdown (`trial`/`active`/`past_due`/
+     `suspended`/`cancelled`). Setting `suspended`/`cancelled` actually
+     blocks that tenant's staff from logging in — not just a label.
+   - **Feature permissions** — checkboxes for `live_orders`,
+     `analytics`, `staff_management`. This is what actually shows or
+     hides those tabs in the owner sidebar, and it's enforced on the
+     matching API endpoints too (a determined owner poking the API
+     directly still gets blocked, not just hidden buttons).
+   - **Manage accounts** (expandable per tenant) — every individual
+     user under that tenant, their store roles, and controls to
+     deactivate one specific account or reset its password (works even
+     for Google-only accounts, as an emergency access grant).
+2. **Plans** — define subscription plans (price, billing cycle, max
+   stores). This is billing/descriptive data only — it's the Tenants
+   screen's feature checkboxes that actually gate anything, not a
+   tenant's assigned plan.
 
-4. **`customer-app`** — `vercel deploy` from inside `customer-app/`,
-   then set `CLOUD_API_BASE` the same way in that project's Environment
-   Variables. Note this URL — you'll enter it into `admin-app`'s
-   **Table QR codes** tab the first time you generate one.
+## Day-to-day use (shop owner)
 
-5. **`local-hub`** — for each physical store: copy this folder onto a
-   small PC or Raspberry Pi on the store's network, `cp .env.example .env`
-   and fill in `STORE_ID` + printer target, then generate a provisioning
-   code from `admin-app`'s **Hub setup** tab and run
-   `node scripts/register.js <code>`. See `local-hub/README.md`.
+1. Create a store (you become its `owner` automatically), then
+   categories and products. With a store selected, the Products tab
+   also shows a "Mark sold out"/"Mark available" toggle per item —
+   manual, per store, not stock-counted.
+2. **Hub setup** generates a one-time provisioning code for each
+   physical hub device (see `local-hub/README.md`).
+3. **Table QR codes** generates a scannable QR per table, pointing at
+   the customer ordering app with that store and table baked in.
+4. **Staff** *(if enabled for your tenant)* — add manager/cashier/
+   kitchen_staff logins for this store (owner-only). You set their
+   initial password directly; there's no invite-link flow yet.
+5. **Live orders** *(if enabled)* — the working view for staff during
+   service: open orders with items and any special-request notes, a
+   "Confirm payment" button for pending KBZPay orders, and "Mark
+   completed." Polls every 5 seconds. **Order history** (always
+   available) is the separate read-only past-orders list.
+6. **Analytics** *(if enabled)* — daily revenue chart, order
+   count/average, and top 10 best sellers by quantity, over
+   7/30/90-day ranges.
 
-## What still needs work before this is production-ready
+## Auth
 
-Each folder's own README has a "not yet implemented" section — the
-short version: `max_stores` on a subscription plan is stored but not
-enforced, staff invite links (owner sets passwords directly right
-now), rate limiting on the two public customer-facing endpoints, and
-order voids/refunds with audit logging. Real login (Google or
-password, JWT-based, per-store roles), a genuinely separate
-platform-admin console (own page, own auth, unreachable from the owner
-app) with real subscription-suspension enforcement, per-tenant feature
-permissions enforced on both the sidebar and the API, individual
-account activation/password-reset, and the core resilient-ordering
-loop (customer places an order → cloud or local hub, whichever is
-reachable → printed at the counter → synced when back online) are all
-built and wired end to end.
+Two real logins, kept fully apart — different apps, different tokens,
+different secrets: shop owner/staff (Google or email/password,
+`POST /auth/login` / `/auth/google-exchange`) and platform admin
+(`POST /platform/auth/login`). Role checks (owner/manager/etc.) happen
+server-side per store, read fresh from `store_users` on every
+request; feature permissions (`feature_overrides`) are read fresh from
+the tenant on every gated request too — see `cloud-api`'s README for
+both.
+
+## Deploying
+
+Static site, but includes a small serverless function (`api/config.js`)
+for real environment-variable config — deploy as a proper Vercel
+project (`vercel deploy`), not a plain static host drag-and-drop, so
+that function (and the nested `/platform/` route) actually work.

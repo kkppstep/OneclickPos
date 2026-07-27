@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>POS Admin</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#1B1512">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand">POS Admin</div>
+    <button class="nav-item active" data-tab="login"><span class="nav-icon">&#128100;</span>Log in</button>
+    <button class="nav-item" data-tab="business"><span class="nav-icon">&#127970;</span>Business</button>
+    <button class="nav-item" data-tab="stores"><span class="nav-icon">&#128712;</span>Stores</button>
+    <button class="nav-item" data-tab="categories"><span class="nav-icon">&#128209;</span>Categories</button>
+    <button class="nav-item" data-tab="products"><span class="nav-icon">&#127858;</span>Products</button>
+    <button class="nav-item" data-tab="provisioning"><span class="nav-icon">&#128421;</span>Hub setup</button>
+    <button class="nav-item" data-tab="qrcodes"><span class="nav-icon">&#9723;</span>Table QR codes</button>
+    <button class="nav-item feature-nav-item" data-feature="staff_management" data-tab="staff" hidden><span class="nav-icon">&#128101;</span>Staff</button>
+    <button class="nav-item feature-nav-item" data-feature="live_orders" data-tab="liveOrders" hidden><span class="nav-icon">&#128337;</span>Live orders</button>
+    <button class="nav-item" data-tab="orders"><span class="nav-icon">&#128220;</span>Order history</button>
+    <button class="nav-item feature-nav-item" data-feature="analytics" data-tab="analytics" hidden><span class="nav-icon">&#128200;</span>Analytics</button>
+    <div class="context" id="contextBar"></div>
+  </nav>
+
+  <main class="content" id="content"></main>
+</div>
+
+<script src="/api/config"></script>
+<script src="app.js"></script>
+</body>
+</html>
