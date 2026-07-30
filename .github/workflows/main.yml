@@ -6,13 +6,12 @@ name: Build admin Android app
 # android/ is never committed — this workflow generates it fresh every
 # run with `npx cap add android`, then patches the generated Gradle
 # files to wire up Firebase Cloud Messaging (for order-alert push
-# notifications) *if* the two setup secrets below are present. Without
-# them, this still produces a fully working debug APK — order alerts
+# notifications) *if* the setup secret below is present. Without
+# it, this still produces a fully working debug APK — order alerts
 # just fall back to the in-app 5s poll instead of a real push.
 #
 # Optional secrets (Settings -> Secrets and variables -> Actions):
 #   GOOGLE_SERVICES_JSON_BASE64  — base64 of Firebase's google-services.json
-#                                  (see admin-mobile-app/README.md)
 #   ANDROID_KEYSTORE_BASE64      — base64 of a release-signing .jks
 #   ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
 #                                — the four together also produce a
@@ -88,18 +87,22 @@ jobs:
 
       - name: Wire up Firebase (google-services.json)
         if: env.HAS_FIREBASE == 'true'
-        run: echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 -d > android/app/google-services.json
+        run: |
+          mkdir -p android/app
+          echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 -d > android/app/google-services.json
 
-      # Idempotent either way: adds the google-services Gradle
-      # classpath if it's missing, and — belt and suspenders, in case
-      # a future Capacitor template already includes it — only appends
-      # the "apply plugin" block to app/build.gradle if no such block
-      # exists yet. The apply itself is wrapped in a try/catch keyed
-      # off whether google-services.json actually exists, so this step
-      # is safe to run even when HAS_FIREBASE is false: the plugin
-      # just won't do anything.
       - name: Patch Gradle files for Firebase
-        run: node ../.github/workflows/scripts/patch-google-services.js
+        if: env.HAS_FIREBASE == 'true'
+        run: |
+          # Add Google Services classpath to root build.gradle if missing
+          if ! grep -q "com.google.gms:google-services" android/build.gradle; then
+            sed -i '/dependencies {/a \        classpath "com.google.gms:google-services:4.4.1"' android/build.gradle
+          fi
+
+          # Apply plugin to app/build.gradle if missing
+          if ! grep -q "com.google.gms.google-services" android/app/build.gradle; then
+            echo 'apply plugin: "com.google.gms.google-services"' >> android/app/build.gradle
+          fi
 
       - name: Sync web assets into the native project
         run: npx cap sync android
