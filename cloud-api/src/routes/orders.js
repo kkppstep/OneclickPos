@@ -1,5 +1,6 @@
 const express = require('express');
 const db = require('../db');
+const { notifyStore } = require('../services/push');
 
 const router = express.Router();
 
@@ -69,6 +70,19 @@ router.post('/orders', async (req, res) => {
     }
 
     await client.query('COMMIT');
+
+    // Terminal orders default to 'completed' (already rung up at the
+    // counter) so this rarely fires — but if a hub ever sends one
+    // through as 'open', it belongs on the Home tab's live list just
+    // like a customer_qr order does, so it gets the same alert.
+    if ((status || 'completed') === 'open') {
+      await notifyStore(store_id, ['owner', 'manager', 'cashier', 'kitchen_staff'], {
+        title: 'New order',
+        body: req.body.table_number ? `Table ${req.body.table_number} just placed an order` : 'A new order just came in',
+        data: { type: 'new_order', order_id: id, store_id: store_id },
+      });
+    }
+
     res.status(201).json({ id, sync_status: 'synced' });
   } catch (err) {
     await client.query('ROLLBACK');

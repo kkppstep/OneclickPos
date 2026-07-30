@@ -1,0 +1,11 @@
+{
+  "appId": "com.yourpos.admin",
+  "appName": "POS Admin",
+  "webDir": "../admin-app/mobile",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "backgroundColor": "#1B1512"
+  }
+}

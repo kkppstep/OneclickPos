@@ -3,7 +3,8 @@
 A static, framework-free dashboard for setting up stores, catalog, hub
 devices, and table QR codes -- and viewing recent orders.
 
-**Two genuinely separate apps live in this folder, on purpose:**
+**Two genuinely separate apps live in this folder, on purpose, plus a
+third surface in a sibling folder:**
 
 - `/` (this folder's `index.html` + `app.js`) — the shop-owner app.
   Nothing about the platform-admin console is visible or reachable
@@ -13,10 +14,18 @@ devices, and table QR codes -- and viewing recent orders.
   token, separate JavaScript file. Reaching it means typing the URL
   directly (e.g. `https://your-admin-app.vercel.app/platform/`), not
   clicking anything in the owner app.
+- `/mobile/` (`mobile/index.html` + `mobile/app.js`) — a third,
+  much smaller owner-facing surface: the web UI that
+  `../admin-mobile-app` packages into an Android app. Three tabs only
+  (Home/Products/Settings), no Stores/Hub setup/Staff/QR codes, and no
+  route to `/platform` exists here either. See
+  `../admin-mobile-app/README.md` for the Android build.
 
 They share this one Vercel deployment (and `styles.css`, and the
 `/api/config` endpoint) purely for deploy convenience — there's no
-code-level connection between them beyond that.
+code-level connection between them beyond that. `/mobile/` has its own
+stylesheet (mobile-specific layout) but talks to the exact same
+cloud-api endpoints as `/`.
 
 ## ⚠️ Required one-time setup: Google sign-in
 
@@ -102,6 +111,14 @@ server-side per store, read fresh from `store_users` on every
 request; feature permissions (`feature_overrides`) are read fresh from
 the tenant on every gated request too — see `cloud-api`'s README for
 both.
+
+## Mobile app (Android)
+
+`../admin-mobile-app` wraps `/mobile/` (see above) as an Android app
+via Capacitor, built by `.github/workflows/android-admin-build.yml` —
+push to `main` or run it manually from the Actions tab, no local
+Android Studio required. Full setup (Firebase push notifications,
+signed release builds) is in `../admin-mobile-app/README.md`.
 
 ## Deploying
 

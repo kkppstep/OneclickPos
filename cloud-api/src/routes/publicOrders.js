@@ -1,5 +1,6 @@
 const express = require('express');
 const db = require('../db');
+const { notifyStore } = require('../services/push');
 
 const router = express.Router();
 
@@ -72,6 +73,21 @@ router.post('/public/stores/:storeId/orders', async (req, res) => {
     }
 
     await client.query('COMMIT');
+
+    // Only 'open' orders show up on the Home tab's live-orders list —
+    // no point alerting staff about an order that's already
+    // completed/voided. Awaited (not fire-and-forget) since this runs
+    // as a Vercel serverless function, which can freeze/tear down
+    // right after the response is sent; notifyStore() catches its own
+    // errors, so this can never turn into a failed order response.
+    if ((status || 'open') === 'open') {
+      await notifyStore(storeId, ['owner', 'manager', 'cashier', 'kitchen_staff'], {
+        title: 'New order',
+        body: table_number ? `Table ${table_number} just placed an order` : 'A new order just came in',
+        data: { type: 'new_order', order_id: id, store_id: storeId },
+      });
+    }
+
     res.status(201).json({ id });
   } catch (err) {
     await client.query('ROLLBACK');

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>POS Admin</title>
+<meta name="theme-color" content="#1B1512">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="app">
+  <header class="top-bar" id="topBar">
+    <div class="brand">POS Admin</div>
+    <button class="store-chip" id="storeChip" hidden></button>
+  </header>
+
+  <main class="content" id="content"></main>
+
+  <nav class="tab-bar" id="tabBar">
+    <button class="tab-btn active" data-tab="home">
+      <span class="tab-icon">&#127968;</span>Home
+    </button>
+    <button class="tab-btn" data-tab="products">
+      <span class="tab-icon">&#127858;</span>Products
+    </button>
+    <button class="tab-btn" data-tab="settings">
+      <span class="tab-icon">&#9881;&#65039;</span>Settings
+    </button>
+  </nav>
+</div>
+
+<!-- Local dev / manual fallback. In CI, this file's CLOUD_API_BASE is
+     regenerated from a repo variable before the app is bundled — see
+     .github/workflows/android-admin-build.yml — so a real build ships
+     pre-filled with the right API instead of an empty box. The Cloud
+     API URL field on the login screen can always override it. -->
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

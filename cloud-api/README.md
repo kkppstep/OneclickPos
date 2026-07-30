@@ -29,6 +29,24 @@ CORS is open (`cors()` with defaults) since `customer-app` and
 without it, every browser call from them would be blocked. Worth
 restricting to your actual deployed domains before going live.
 
+## Optional one-time setup: push notifications (Firebase)
+
+Skip this and everything else still works — `notifyStore()` in
+`src/services/push.js` just no-ops (with a one-line startup warning)
+until it's done. It powers the "new order" alert on the admin mobile
+app's Home tab (`admin-mobile-app/`, see its README).
+
+1. [Firebase console](https://console.firebase.google.com) → create a
+   project → add an Android app with the same package name as
+   `admin-mobile-app/capacitor.config.json`'s `appId`.
+2. Project settings → Service accounts → **Generate new private key**.
+   Paste the whole downloaded JSON file, as-is, into the
+   `FIREBASE_SERVICE_ACCOUNT` environment variable.
+3. `google-services.json` (downloaded from the same Android app in
+   step 1) is a separate thing — that one goes into the mobile app's
+   own `GOOGLE_SERVICES_JSON_BASE64` GitHub Actions secret, not here.
+   See `admin-mobile-app/README.md`.
+
 ## Auth — four separate schemes, deliberately not shared
 
 - **Hub auth** — every hub carries a bearer API key issued at
@@ -147,6 +165,13 @@ restricting to your actual deployed domains before going live.
 - `GET /admin/stores/:storeId/analytics?days=7|30|90` — owner/manager.
   Daily revenue, order count/average, and top 10 best sellers by
   quantity, excluding voided/refunded orders.
+- `POST /admin/push-tokens` — user-authenticated. `{ token, platform }`
+  registers a device for order-alert push notifications (see
+  "Optional one-time setup: push notifications" above). Upserts, so
+  calling it again with the same token is a no-op.
+- `DELETE /admin/push-tokens/:token` — user-authenticated. Called on
+  mobile-app logout so a signed-out device stops getting that user's
+  alerts.
 - `POST /hubs/register` — public, gated by a valid provisioning code
   instead of a hub API key (the device doesn't have one yet). Returns
   `hub_id` + `api_key` in plaintext exactly once — only the key's hash
@@ -172,9 +197,10 @@ re-exports the same Express app used for local dev (`src/app.js`) — no
 duplicate route definitions to maintain. Set `DATABASE_URL`,
 `JWT_SECRET`, `PLATFORM_JWT_SECRET`, `SUPABASE_URL`,
 `SUPABASE_SERVICE_ROLE_KEY` as Vercel
-environment variables. Use a connection pooler (e.g. Supabase or
-Neon's pgbouncer endpoint) for `DATABASE_URL` in production — see the
-comment in `src/db.js`.
+environment variables, plus `FIREBASE_SERVICE_ACCOUNT` if you want
+push notifications (optional — see above). Use a connection pooler
+(e.g. Supabase or Neon's pgbouncer endpoint) for `DATABASE_URL` in
+production — see the comment in `src/db.js`.
 
 ## Not yet implemented (next steps)
 

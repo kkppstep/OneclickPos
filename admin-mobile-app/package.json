@@ -1,0 +1,18 @@
+{
+  "name": "pos-admin-mobile-app",
+  "version": "0.1.0",
+  "description": "Capacitor wrapper for the admin mobile app (Home/Products/Settings), for Android — see ../admin-app/mobile for the actual web UI it wraps.",
+  "scripts": {
+    "sync": "npx cap sync android",
+    "open:android": "npx cap open android"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/push-notifications": "^6.0.2",
+    "@capacitor/app": "^6.0.1"
+  }
+}

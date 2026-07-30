@@ -12,4 +12,11 @@ module.exports = {
   // Supabase dashboard -> Settings -> API -> JWT Secret.
   supabaseUrl: process.env.SUPABASE_URL || '',
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+  // Whole google-services.json-style service account file, pasted in as
+  // one JSON env var (Firebase console -> Project settings -> Service
+  // accounts -> Generate new private key). Powers "new order" push
+  // notifications to the admin mobile app — see src/services/push.js.
+  // Left blank, push notifications are silently disabled and nothing
+  // else in the API is affected.
+  firebaseServiceAccount: process.env.FIREBASE_SERVICE_ACCOUNT || '',
 };
