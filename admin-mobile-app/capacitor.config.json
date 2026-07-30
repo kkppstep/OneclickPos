@@ -1,6 +1,6 @@
 {
-  "appId": "com.yourpos.admin",
-  "appName": "POS Admin",
+  "appId": "com.alphapos.admin",
+  "appName": "Alpla Admin",
   "webDir": "../admin-app/mobile",
   "server": {
     "androidScheme": "https"
