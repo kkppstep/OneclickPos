@@ -340,3 +340,22 @@ CREATE TABLE audit_log (
     metadata JSONB DEFAULT '{}',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- ============================================================
+-- PUSH NOTIFICATIONS (admin mobile app)
+-- One row per device a user has signed into the mobile admin app on.
+-- Tied to a user, not a store — see cloud-api/src/services/push.js,
+-- which resolves "who to notify for store X" fresh from store_users
+-- at send time, the same pattern every other permission check in this
+-- API already uses, rather than duplicating role info here.
+-- ============================================================
+CREATE TABLE device_push_tokens (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token TEXT NOT NULL,                -- FCM registration token
+    platform TEXT NOT NULL DEFAULT 'android' CHECK (platform IN ('android', 'ios')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (user_id, token)
+);
+CREATE INDEX idx_device_push_tokens_user ON device_push_tokens (user_id);
