@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en" id="htmlRoot">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OneClickPOS — QR ordering for your restaurant</title>
+<meta name="description" content="Put a QR code on the table. Customers order from their phone, the kitchen sees it instantly, you get notified the moment it happens.">
+<meta name="theme-color" content="#1B1512">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,440;9..144,560;9..144,650&family=Inter:wght@400;500;600;700&family=Padauk:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topnav">
+  <div class="topnav-inner">
+    <div class="brand" data-i18n="nav.brand"></div>
+    <div class="topnav-actions">
+      <button class="lang-toggle" id="langToggle" type="button" aria-label="Switch language">
+        <span class="lang-option" data-lang="en">EN</span><span class="lang-sep">/</span><span class="lang-option" data-lang="mm">MM</span>
+      </button>
+      <a class="nav-signin" id="navSignIn" data-i18n="nav.signIn" href="#"></a>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- ============================================================
+       Story sequence — doubles as the hero. On wide viewports this
+       pins and scrubs horizontally with scroll (see app.js). On
+       narrow viewports it falls back to a plain stacked reveal.
+       ============================================================ -->
+  <section class="story-section" id="storySection">
+    <div class="story-kicker" data-i18n="story.kicker"></div>
+
+    <div class="story-viewport" id="storyViewport">
+      <div class="story-track" id="storyTrack">
+
+        <article class="story-frame" data-frame-index="0">
+          <div class="scene">
+            <div class="scene-table">
+              <div class="qr-card">
+                <div class="qr-code" aria-hidden="true">
+                  <div class="qr-finder qr-finder-tl"></div>
+                  <div class="qr-finder qr-finder-tr"></div>
+                  <div class="qr-finder qr-finder-bl"></div>
+                  <div class="qr-noise"></div>
+                </div>
+              </div>
+              <div class="table-shadow"></div>
+            </div>
+          </div>
+          <div class="frame-copy">
+            <h2 data-i18n="story.frames.0.headline"></h2>
+            <p data-i18n="story.frames.0.body"></p>
+          </div>
+        </article>
+
+        <article class="story-frame" data-frame-index="1">
+          <div class="scene">
+            <div class="scene-scan">
+              <div class="qr-card qr-card-small">
+                <div class="qr-code" aria-hidden="true">
+                  <div class="qr-finder qr-finder-tl"></div>
+                  <div class="qr-finder qr-finder-tr"></div>
+                  <div class="qr-finder qr-finder-bl"></div>
+                  <div class="qr-noise"></div>
+                </div>
+              </div>
+              <div class="phone phone-scan">
+                <div class="phone-notch"></div>
+                <div class="viewfinder">
+                  <span class="vf-corner vf-tl"></span><span class="vf-corner vf-tr"></span>
+                  <span class="vf-corner vf-bl"></span><span class="vf-corner vf-br"></span>
+                  <div class="scan-line"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="frame-copy">
+            <h2 data-i18n="story.frames.1.headline"></h2>
+            <p data-i18n="story.frames.1.body"></p>
+          </div>
+        </article>
+
+        <article class="story-frame" data-frame-index="2">
+          <div class="scene">
+            <div class="scene-order">
+              <div class="phone phone-order">
+                <div class="phone-notch"></div>
+                <div class="phone-screen">
+                  <div class="menu-row"><span class="menu-dot"></span><span class="menu-line menu-line-w1"></span><span class="menu-price"></span></div>
+                  <div class="menu-row"><span class="menu-dot"></span><span class="menu-line menu-line-w2"></span><span class="menu-price"></span></div>
+                  <div class="menu-row menu-row-added"><span class="menu-dot"></span><span class="menu-line menu-line-w1"></span><span class="menu-price"></span></div>
+                  <div class="order-confirm-btn"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="frame-copy">
+            <h2 data-i18n="story.frames.2.headline"></h2>
+            <p data-i18n="story.frames.2.body"></p>
+          </div>
+        </article>
+
+        <article class="story-frame" data-frame-index="3">
+          <div class="scene">
+            <div class="scene-kitchen">
+              <div class="ticket" aria-hidden="true">
+                <span class="ticket-line ticket-line-title"></span>
+                <span class="ticket-line"></span>
+                <span class="ticket-line"></span>
+              </div>
+              <div class="kitchen-rail">
+                <div class="rail-slot"></div>
+                <div class="rail-slot"></div>
+                <div class="rail-slot rail-slot-active"><span class="steam s1"></span><span class="steam s2"></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="frame-copy">
+            <h2 data-i18n="story.frames.3.headline"></h2>
+            <p data-i18n="story.frames.3.body"></p>
+          </div>
+        </article>
+
+        <article class="story-frame" data-frame-index="4">
+          <div class="scene">
+            <div class="scene-notify">
+              <div class="phone phone-owner">
+                <div class="phone-notch"></div>
+                <div class="notif-banner">
+                  <span class="notif-icon"></span>
+                  <span class="notif-text">
+                    <span class="notif-line notif-line-title"></span>
+                    <span class="notif-line notif-line-sub"></span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="frame-copy">
+            <h2 data-i18n="story.frames.4.headline"></h2>
+            <p data-i18n="story.frames.4.body"></p>
+          </div>
+        </article>
+
+      </div>
+    </div>
+
+    <div class="story-progress" id="storyProgress" aria-hidden="true">
+      <span class="dot" data-dot="0"></span><span class="dot" data-dot="1"></span><span class="dot" data-dot="2"></span><span class="dot" data-dot="3"></span><span class="dot" data-dot="4"></span>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       Pricing — cards are rendered by app.js from content.js so the
+       EN/MM feature lists never have to be kept in sync by hand.
+       ============================================================ -->
+  <section class="pricing-section" id="pricing">
+    <div class="pricing-inner">
+      <div class="pricing-kicker" data-i18n="pricing.kicker"></div>
+      <h2 data-i18n="pricing.heading"></h2>
+      <p class="pricing-sub" data-i18n="pricing.sub"></p>
+      <div class="plans" id="plansContainer"></div>
+      <p class="pricing-contact-note" data-i18n="pricing.contactNote"></p>
+    </div>
+  </section>
+
+  <section class="final-cta">
+    <h2 data-i18n="finalCta.heading"></h2>
+    <p data-i18n="finalCta.sub"></p>
+    <a class="btn-primary btn-large" id="finalCtaBtn" data-i18n="finalCta.button" href="#"></a>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div class="brand" data-i18n="nav.brand"></div>
+    <p class="footer-tagline" data-i18n="footer.tagline"></p>
+    <p class="footer-rights" data-i18n="footer.rights"></p>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/ScrollTrigger.min.js"></script>
+<script src="content.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

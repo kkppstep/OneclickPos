@@ -1,0 +1,363 @@
+/* ============================================================
+   OneClickPOS landing page
+   Same brand palette as admin-app/styles.css, given more room to be
+   cinematic. Fraunces for big story moments, Inter for everything
+   else, Padauk takes over automatically for Burmese via :lang(mm).
+   ============================================================ */
+
+:root {
+  --ink: #1B1512;
+  --ink-soft: #2A211C;
+  --ink-softer: #372C26;
+  --red: #A6301F;
+  --red-soft: #C24A38;
+  --gold: #C79A44;
+  --gold-soft: #DDBD79;
+  --ivory: #F6EFE0;
+  --ivory-dim: #EAE0C9;
+  --ivory-faint: rgba(246, 239, 224, 0.65);
+
+  --font-display: "Fraunces", Georgia, serif;
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  --container: 1120px;
+}
+
+:lang(my) {
+  --font-display: "Padauk", "Noto Sans Myanmar", var(--font-body);
+  --font-body: "Padauk", "Noto Sans Myanmar", -apple-system, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--ink);
+  color: var(--ivory);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+img, svg { display: block; max-width: 100%; }
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; cursor: pointer; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 560; line-height: 1.12; letter-spacing: -0.01em; }
+.container { max-width: var(--container); margin: 0 auto; padding: 0 28px; }
+
+/* Elements meant only for JS/i18n bootstrapping, hidden until ready */
+[data-i18n]:empty { min-height: 1em; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+
+/* ---------- Top nav ---------- */
+.topnav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 50;
+  background: linear-gradient(180deg, rgba(27,21,18,0.92), rgba(27,21,18,0));
+  padding-top: env(safe-area-inset-top);
+}
+.topnav-inner {
+  max-width: var(--container);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 28px;
+}
+.brand { font-family: var(--font-display); font-weight: 650; font-size: 1.15rem; letter-spacing: -0.01em; color: var(--ivory); }
+.topnav-actions { display: flex; align-items: center; gap: 14px; }
+.lang-toggle {
+  background: rgba(246,239,224,0.08);
+  border: 1px solid rgba(246,239,224,0.16);
+  border-radius: 999px;
+  color: var(--ivory-faint);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 7px 12px;
+  display: flex; align-items: center; gap: 5px;
+}
+.lang-toggle .lang-option { padding: 1px 3px; border-radius: 4px; transition: color 0.15s ease; }
+.lang-toggle .lang-option.is-active { color: var(--gold); }
+.lang-toggle .lang-sep { opacity: 0.4; }
+.nav-signin {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--ivory);
+  border: 1px solid rgba(246,239,224,0.28);
+  border-radius: 999px;
+  padding: 8px 16px;
+}
+.nav-signin:hover { border-color: var(--gold); color: var(--gold); }
+
+/* ============================================================
+   Story section — the hero. Desktop: pinned + horizontally
+   scrubbed by app.js via GSAP ScrollTrigger. Mobile: plain stacked
+   reveal (app.js only pins above the matchMedia breakpoint).
+   ============================================================ */
+.story-section {
+  position: relative;
+  padding-top: 120px;
+}
+.story-kicker {
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 18px;
+}
+
+.story-viewport {
+  overflow: hidden;
+  width: 100%;
+}
+.story-track {
+  display: flex;
+}
+.story-frame {
+  flex: 0 0 100%;
+  min-width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 42px;
+  padding: 20px 28px 70px;
+}
+
+.scene {
+  width: 100%;
+  max-width: 420px;
+  height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.frame-copy { text-align: center; max-width: 480px; }
+.frame-copy h2 { font-size: clamp(1.5rem, 4vw, 2.15rem); margin-bottom: 12px; color: var(--ivory); }
+.frame-copy p { font-size: 1.02rem; line-height: 1.6; color: var(--ivory-faint); }
+
+.story-progress { display: flex; justify-content: center; gap: 9px; padding-bottom: 8px; }
+.story-progress .dot { width: 7px; height: 7px; border-radius: 999px; background: rgba(246,239,224,0.22); transition: background 0.2s ease, transform 0.2s ease; }
+.story-progress .dot.is-active { background: var(--gold); transform: scale(1.3); }
+
+/* ---------- Scene: table + QR card (frame 0) ---------- */
+.scene-table { position: relative; display: flex; align-items: center; justify-content: center; height: 100%; }
+.qr-card {
+  width: 168px; height: 168px;
+  background: var(--ivory);
+  border-radius: 18px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 18px 40px rgba(0,0,0,0.35);
+  position: relative;
+  z-index: 2;
+}
+.qr-card-small { width: 92px; height: 92px; border-radius: 12px; }
+.qr-code { position: relative; width: 66%; height: 66%; }
+.qr-finder { position: absolute; width: 24%; height: 24%; border: 3px solid var(--ink); border-radius: 3px; }
+.qr-card-small .qr-finder { border-width: 2px; }
+.qr-finder::after { content: ""; position: absolute; inset: 26%; background: var(--ink); }
+.qr-finder-tl { top: 0; left: 0; }
+.qr-finder-tr { top: 0; right: 0; }
+.qr-finder-bl { bottom: 0; left: 0; }
+.qr-noise {
+  position: absolute; inset: 0;
+  box-shadow:
+    38% 8% 0 1px var(--ink), 52% 8% 0 1px var(--ink),
+    8% 40% 0 1px var(--ink), 45% 38% 0 1px var(--ink), 62% 44% 0 1px var(--ink),
+    78% 20% 0 1px var(--ink), 82% 55% 0 1px var(--ink),
+    38% 55% 0 1px var(--ink), 30% 68% 0 1px var(--ink),
+    55% 70% 0 1px var(--ink), 70% 72% 0 1px var(--ink),
+    45% 82% 0 1px var(--ink), 62% 85% 0 1px var(--ink);
+}
+.table-shadow {
+  position: absolute;
+  bottom: 18px; left: 50%; transform: translateX(-50%);
+  width: 210px; height: 34px;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0.4), transparent 72%);
+  z-index: 1;
+}
+
+/* ---------- Shared phone shape ---------- */
+.phone {
+  width: 148px; height: 300px;
+  background: var(--ink-softer);
+  border: 2px solid rgba(246,239,224,0.14);
+  border-radius: 28px;
+  position: relative;
+  box-shadow: 0 24px 50px rgba(0,0,0,0.45);
+  overflow: hidden;
+}
+.phone-notch {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  width: 46px; height: 7px; border-radius: 999px; background: rgba(0,0,0,0.4);
+}
+
+/* ---------- Scene: scan (frame 1) ---------- */
+.scene-scan { position: relative; display: flex; align-items: center; justify-content: center; gap: 26px; height: 100%; }
+.phone-scan { align-self: flex-end; }
+.viewfinder { position: absolute; inset: 34px 14px 14px; }
+.vf-corner { position: absolute; width: 22px; height: 22px; border: 3px solid var(--gold); opacity: 0; }
+.vf-tl { top: 0; left: 0; border-right: none; border-bottom: none; }
+.vf-tr { top: 0; right: 0; border-left: none; border-bottom: none; }
+.vf-bl { bottom: 0; left: 0; border-right: none; border-top: none; }
+.vf-br { bottom: 0; right: 0; border-left: none; border-top: none; }
+.scan-line { position: absolute; left: 4px; right: 4px; top: 0; height: 2px; background: var(--gold); box-shadow: 0 0 12px 1px var(--gold); opacity: 0; }
+
+/* ---------- Scene: order/menu (frame 2) ---------- */
+.scene-order { display: flex; align-items: center; justify-content: center; height: 100%; }
+.phone-order { width: 172px; height: 320px; }
+.phone-screen { position: absolute; inset: 26px 12px 12px; display: flex; flex-direction: column; gap: 12px; }
+.menu-row { display: flex; align-items: center; gap: 8px; opacity: 0; }
+.menu-dot { width: 26px; height: 26px; border-radius: 8px; background: var(--ivory-dim); flex-shrink: 0; }
+.menu-line { display: block; height: 8px; border-radius: 999px; background: rgba(246,239,224,0.28); flex: 1; }
+.menu-line-w1 { max-width: 70px; }
+.menu-line-w2 { max-width: 52px; }
+.menu-price { width: 26px; height: 8px; border-radius: 999px; background: var(--gold); flex-shrink: 0; }
+.menu-row-added .menu-dot { background: var(--red); }
+.order-confirm-btn { margin-top: auto; height: 34px; border-radius: 10px; background: var(--red); opacity: 0; }
+
+/* ---------- Scene: kitchen (frame 3) ---------- */
+.scene-kitchen { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 48px; height: 100%; }
+.ticket {
+  width: 108px; padding: 12px 12px 16px;
+  background: var(--ivory);
+  border-radius: 4px;
+  box-shadow: 0 14px 30px rgba(0,0,0,0.35);
+  position: relative;
+}
+.ticket::before {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -6px; height: 12px;
+  background: repeating-linear-gradient(-45deg, var(--ivory) 0 4px, transparent 4px 8px);
+}
+.ticket-line { display: block; height: 6px; border-radius: 999px; background: var(--ink-softer); margin-bottom: 8px; opacity: 0.5; }
+.ticket-line-title { background: var(--red); opacity: 1; width: 70%; }
+.kitchen-rail { display: flex; gap: 14px; align-items: flex-end; }
+.rail-slot { width: 58px; height: 44px; border: 1.5px dashed rgba(246,239,224,0.25); border-radius: 8px; position: relative; }
+.rail-slot-active { border-style: solid; border-color: var(--gold); background: rgba(199,154,68,0.08); }
+.steam { position: absolute; bottom: 100%; width: 3px; height: 16px; border-radius: 999px; background: rgba(246,239,224,0.35); opacity: 0; }
+.steam.s1 { left: 38%; }
+.steam.s2 { left: 58%; }
+
+/* ---------- Scene: notify (frame 4) ---------- */
+.scene-notify { display: flex; align-items: center; justify-content: center; height: 100%; }
+.phone-owner { width: 156px; height: 310px; }
+.notif-banner {
+  position: absolute; top: 34px; left: 10px; right: 10px;
+  background: var(--ivory);
+  border-radius: 12px;
+  padding: 11px;
+  display: flex; align-items: center; gap: 9px;
+  box-shadow: 0 10px 22px rgba(0,0,0,0.3);
+  opacity: 0;
+}
+.notif-icon { width: 30px; height: 30px; border-radius: 8px; background: var(--red); flex-shrink: 0; }
+.notif-text { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.notif-line { display: block; height: 7px; border-radius: 999px; background: var(--ink-softer); }
+.notif-line-title { width: 80%; }
+.notif-line-sub { width: 55%; opacity: 0.55; }
+
+/* ============================================================
+   Pricing
+   ============================================================ */
+.pricing-section { padding: 100px 28px 60px; }
+.pricing-inner { max-width: var(--container); margin: 0 auto; text-align: center; }
+.pricing-kicker { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); margin-bottom: 14px; }
+.pricing-inner h2 { font-size: clamp(1.9rem, 4vw, 2.6rem); margin-bottom: 14px; }
+.pricing-sub { color: var(--ivory-faint); font-size: 1.02rem; max-width: 460px; margin: 0 auto 56px; }
+
+.plans {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  max-width: 760px;
+  margin: 0 auto;
+  text-align: left;
+}
+.plan-card {
+  background: var(--ink-soft);
+  border: 1px solid rgba(246,239,224,0.1);
+  border-radius: 20px;
+  padding: 32px 28px;
+  display: flex;
+  flex-direction: column;
+}
+.plan-card.is-featured {
+  background: linear-gradient(165deg, var(--ink-softer), var(--ink-soft));
+  border-color: var(--gold);
+  box-shadow: 0 20px 50px rgba(199,154,68,0.12);
+}
+.plan-name { font-family: var(--font-display); font-size: 1.4rem; font-weight: 650; margin-bottom: 6px; }
+.is-featured .plan-name { color: var(--gold); }
+.plan-tagline { color: var(--ivory-faint); font-size: 0.88rem; margin-bottom: 20px; min-height: 2.6em; }
+.plan-price { display: flex; align-items: baseline; gap: 6px; margin-bottom: 24px; }
+.plan-price-amount { font-family: var(--font-display); font-size: 1.9rem; font-weight: 600; }
+.plan-price-period { color: var(--ivory-faint); font-size: 0.85rem; }
+.plan-features { list-style: none; display: flex; flex-direction: column; gap: 12px; margin-bottom: 28px; flex: 1; }
+.plan-features li { display: flex; align-items: flex-start; gap: 10px; font-size: 0.92rem; line-height: 1.4; color: var(--ivory-faint); }
+.plan-features li::before {
+  content: "";
+  flex-shrink: 0;
+  width: 16px; height: 16px;
+  margin-top: 2px;
+  border-radius: 999px;
+  background: var(--gold);
+  -webkit-mask: radial-gradient(circle 5px at 5px 8px, transparent 98%, black 100%) , linear-gradient(#000,#000);
+}
+.btn-primary {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--red);
+  color: var(--ivory);
+  font-weight: 700;
+  font-size: 0.94rem;
+  border-radius: 999px;
+  padding: 13px 26px;
+  text-align: center;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.btn-primary:hover { background: var(--red-soft); transform: translateY(-1px); }
+.is-featured .btn-primary { background: var(--gold); color: var(--ink); }
+.is-featured .btn-primary:hover { background: var(--gold-soft); }
+.pricing-contact-note { margin-top: 36px; font-size: 0.84rem; color: var(--ivory-faint); max-width: 520px; margin-left: auto; margin-right: auto; }
+
+/* ============================================================
+   Final CTA + footer
+   ============================================================ */
+.final-cta { text-align: center; padding: 100px 28px 120px; }
+.final-cta h2 { font-size: clamp(1.9rem, 4vw, 2.6rem); margin-bottom: 14px; }
+.final-cta p { color: var(--ivory-faint); font-size: 1.02rem; margin-bottom: 32px; }
+.btn-large { padding: 16px 36px; font-size: 1rem; }
+
+.site-footer { border-top: 1px solid rgba(246,239,224,0.1); padding: 40px 28px; }
+.footer-inner { max-width: var(--container); margin: 0 auto; text-align: center; }
+.footer-tagline { color: var(--ivory-faint); font-size: 0.88rem; margin: 10px 0 14px; }
+.footer-rights { color: rgba(246,239,224,0.4); font-size: 0.78rem; }
+
+/* ============================================================
+   Responsive — story section becomes a plain stacked reveal below
+   the matchMedia breakpoint app.js uses (900px). This CSS just
+   makes sure it reads well either way; app.js decides which
+   animation mode actually runs.
+   ============================================================ */
+@media (max-width: 899px) {
+  .story-viewport { overflow: visible; }
+  .story-track { flex-direction: column; }
+  .story-frame { flex: 0 0 auto; min-width: 0; width: 100%; padding: 10px 22px 56px; gap: 30px; }
+  .scene { height: 260px; }
+  .plans { grid-template-columns: 1fr; max-width: 400px; }
+}
+
+@media (max-width: 560px) {
+  .topnav-inner { padding: 14px 18px; }
+  .story-section { padding-top: 96px; }
+  .pricing-section, .final-cta { padding-left: 20px; padding-right: 20px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+}
