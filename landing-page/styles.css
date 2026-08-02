@@ -52,7 +52,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 560; line-height: 1.
   position: fixed;
   inset: 0;
   z-index: -2;
-  background-image: url('assets/bg.jpg');
+  background-image: url('assets/bg.jpeg');
   background-size: cover;
   background-position: center;
 }
