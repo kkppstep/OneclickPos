@@ -66,6 +66,49 @@ for whatever should animate in. Everything else (the pin distance, the
 progress dots, the mobile fallback) adapts automatically since it's
 all driven by `frames.length`.
 
+## Adding your generated photos/videos
+
+Save each file into `assets/` (new folder, see its own short README)
+using these exact names — the page finds them automatically:
+
+| File | Replaces |
+|---|---|
+| `assets/bg.jpg` | The flat background color, site-wide |
+| `assets/step-1.jpg` | QR code on the table |
+| `assets/step-2.jpg` | Customer scanning |
+| `assets/step-3.jpg` | Browsing / ordering |
+| `assets/step-4.jpg` | Kitchen sees the order |
+| `assets/step-5.jpg` | Owner's phone buzzes |
+
+That's it — no code changes for photos. Each `<img>` in `index.html`
+already points at these paths; if a file isn't there yet, it quietly
+removes itself and you see the original CSS-drawn version instead, so
+you can add these one at a time without anything ever looking broken.
+
+**Have a video for one of the steps instead of a photo?** In
+`index.html`, find that step's line (search for `step-3.jpg`, e.g.)
+and replace just that one line:
+
+```html
+<!-- was: -->
+<img class="scene-media" src="assets/step-3.jpg" alt="" onerror="this.remove()">
+
+<!-- becomes: -->
+<video class="scene-media" autoplay muted loop playsinline
+       poster="assets/step-3.jpg" onerror="this.remove()">
+  <source src="assets/step-3.mp4" type="video/mp4">
+</video>
+```
+
+`muted` is required for `autoplay` to work in any browser — a video
+with sound can't autoplay, full stop. `poster` is optional but worth
+keeping: it's what shows for the instant before the video loads.
+
+The background (`assets/bg.jpg`) is set up for a photo only, on
+purpose — a full-page background video is a real bandwidth/battery
+cost for not much visual gain when it's mostly covered by the dark
+overlay anyway. Ask if you'd like that added too.
+
 ## Running it locally
 
 No build step — but opening `index.html` directly via `file://` will

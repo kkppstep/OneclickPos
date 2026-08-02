@@ -97,6 +97,15 @@ function wireStaticLinks() {
 // scrubbed timeline's playhead is scroll position, not real time, so
 // an infinitely-*looping* tween doesn't make sense inside it.
 function choreographFrame(tl, frame, index, startAt) {
+  // Whatever real photo/video exists for this step (see index.html's
+  // assets/step-N.* — absent ones remove themselves via onerror and
+  // this is just null, so the CSS scene underneath shows instead).
+  const media = frame.querySelector('.scene-media');
+  if (media) {
+    tl.fromTo(media, { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1.02, duration: 0.4, ease: 'power2.out' }, startAt)
+      .to(media, { scale: 1.08, duration: 0.6, ease: 'none' }, startAt + 0.4);
+  }
+
   switch (index) {
     case 0: {
       const card = frame.querySelector('.qr-card');
