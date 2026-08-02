@@ -46,7 +46,11 @@
 
         <article class="story-frame" data-frame-index="0">
           <div class="scene">
-            <img class="scene-media" src="assets/step-1.jpeg" alt="" onerror="this.remove()">
+           <!-- becomes: -->
+<video class="scene-media" autoplay muted loop playsinline
+       poster="assets/step-1.jpeg" onerror="this.remove()">
+  <source src="assets/step-1.mp4" type="video/mp4">
+</video>
             <div class="scene-table">
               <div class="qr-card">
                 <div class="qr-code" aria-hidden="true">
