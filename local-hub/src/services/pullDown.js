@@ -1,7 +1,7 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const { client } = require('./cloudClient');
-const { printReceipt } = require('./printer');
+const { printReceipt, printImageFromUrl } = require('./printer');
 
 // Pulls customer-placed orders that landed in the cloud down to this
 // hub, so they get printed and recorded locally even though this hub
@@ -70,4 +70,28 @@ async function pullPendingOrders(timeoutMs) {
   }
 }
 
-module.exports = { pullPendingOrders };
+// On-demand receipts (payment confirmation) — separate queue from the
+// kitchen-ticket orders above, only ever has something in it right
+// after staff tap "confirm payment" in admin-app. No local order/item
+// data involved here, just an image to hand to the printer.
+async function pullPendingPrintJobs(timeoutMs) {
+  let printJobs;
+  try {
+    const res = await client(timeoutMs).get('/print-jobs/pending');
+    printJobs = res.data.print_jobs;
+  } catch (err) {
+    return; // cloud unreachable this tick — retried automatically next cycle
+  }
+
+  for (const job of printJobs) {
+    try {
+      await printImageFromUrl(job.image_url);
+      await client(timeoutMs).post(`/print-jobs/${job.id}/ack`, { success: true });
+    } catch (err) {
+      console.error(`[pulldown] receipt image print failed, job ${job.id}:`, err.message);
+      await client(timeoutMs).post(`/print-jobs/${job.id}/ack`, { success: false, error: err.message }).catch(() => {});
+    }
+  }
+}
+
+module.exports = { pullPendingOrders, pullPendingPrintJobs };

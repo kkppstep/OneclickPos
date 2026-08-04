@@ -671,26 +671,72 @@ function openProductEditRow(productId) {
 // ============================================================
 async function renderProvisioning() {
   if (!state.storeId) { setContent(`<h1>Hub setup</h1><div class="state-message">Select a store first.</div>`); return; }
+
+  const data = await api('/admin/stores');
+  const store = data.stores.find((s) => s.id === state.storeId);
+
   setContent(`
     <h1>Hub setup</h1>
-    <div class="subtitle">Generates a one-time code to register a new hub device for this store. Requires owner/manager role.</div>
+
     <div class="card">
+      <h2 style="margin-top:0;">Receipt printer</h2>
+      <div class="subtitle">A generic 80mm Wi-Fi/Ethernet printer (Xprinter, ZJiang, and most budget ESC/POS printers work) on the same network as whichever device is printing — either local-hub, or print-bridge for stores without one.</div>
+      <div class="field"><label><input type="checkbox" id="printerEnabled" style="width:auto;margin-right:6px;" ${store.printer_enabled ? 'checked' : ''}>Printing enabled</label></div>
+      <div style="display:flex;gap:12px;">
+        <div class="field" style="flex:2;"><label>Printer IP address</label><input id="printerIp" placeholder="192.168.1.50" value="${escapeHtml(store.printer_ip || '')}"></div>
+        <div class="field" style="flex:1;"><label>Port</label><input id="printerPort" type="number" value="${store.printer_port || 9100}"></div>
+      </div>
+      <div class="field"><label>Printer model</label>
+        <select id="printerModel">
+          <option value="epson" ${store.printer_model === 'epson' ? 'selected' : ''}>Epson command set (most budget printers — try this first)</option>
+          <option value="star" ${store.printer_model === 'star' ? 'selected' : ''}>Star</option>
+          <option value="tanca" ${store.printer_model === 'tanca' ? 'selected' : ''}>Tanca</option>
+          <option value="daruma" ${store.printer_model === 'daruma' ? 'selected' : ''}>Daruma</option>
+        </select>
+      </div>
+      <div class="field"><label><input type="checkbox" id="printerCashDrawer" style="width:auto;margin-right:6px;" ${store.printer_has_cash_drawer ? 'checked' : ''}>Has a cash drawer wired to the printer</label></div>
+      <button class="btn" id="savePrinterBtn">Save printer settings</button>
+      <div id="printerSaveResult"></div>
+      <p style="font-size:0.8rem;color:var(--text-muted);margin-top:10px;">Takes effect within about a cycle (a few seconds to a minute) — whichever device is printing for this store checks for changes periodically, no restart needed. No PC on site at all? See <code>print-bridge/README.md</code> — it's a lighter alternative to a full hub that only handles printing.</p>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0;">Pair a device</h2>
+      <div class="subtitle">Generates a one-time code to register a new hub or print-bridge device for this store. Requires owner/manager role.</div>
       <div class="field"><label>Code expires in (minutes)</label><input id="expiryMinutes" type="number" value="30"></div>
       <button class="btn" id="generateCodeBtn">Generate code</button>
       <div id="codeResult"></div>
     </div>
   `);
 
+  document.getElementById('savePrinterBtn').addEventListener('click', async () => {
+    try {
+      await api(`/admin/stores/${state.storeId}`, {
+        method: 'PATCH',
+        body: {
+          printer_enabled: document.getElementById('printerEnabled').checked,
+          printer_ip: document.getElementById('printerIp').value.trim() || null,
+          printer_port: Number(document.getElementById('printerPort').value) || 9100,
+          printer_model: document.getElementById('printerModel').value,
+          printer_has_cash_drawer: document.getElementById('printerCashDrawer').checked,
+        },
+      });
+      document.getElementById('printerSaveResult').innerHTML = `<div class="state-message" style="margin-top:10px;">Saved.</div>`;
+    } catch (err) {
+      document.getElementById('printerSaveResult').innerHTML = `<div class="state-message error" style="margin-top:10px;">${escapeHtml(err.message)}</div>`;
+    }
+  });
+
   document.getElementById('generateCodeBtn').addEventListener('click', async () => {
     try {
-      const data = await api(`/admin/stores/${state.storeId}/provisioning-codes`, {
+      const codeData = await api(`/admin/stores/${state.storeId}/provisioning-codes`, {
         method: 'POST',
         body: { expires_in_minutes: Number(document.getElementById('expiryMinutes').value) || 30 },
       });
       document.getElementById('codeResult').innerHTML = `
-        <div class="code-display">${escapeHtml(data.code)}</div>
-        <p style="font-size:0.85rem;color:var(--text-muted)">Expires at ${new Date(data.expires_at).toLocaleTimeString()}. On the hub device, run:</p>
-        <pre style="background:var(--ivory-dim);padding:10px;border-radius:8px;font-size:0.8rem;overflow-x:auto">STORE_ID=${state.storeId} node scripts/register.js ${data.code}</pre>
+        <div class="code-display">${escapeHtml(codeData.code)}</div>
+        <p style="font-size:0.85rem;color:var(--text-muted)">Expires at ${new Date(codeData.expires_at).toLocaleTimeString()}. On the hub or print-bridge device, run:</p>
+        <pre style="background:var(--ivory-dim);padding:10px;border-radius:8px;font-size:0.8rem;overflow-x:auto">STORE_ID=${state.storeId} node scripts/register.js ${codeData.code}</pre>
       `;
     } catch (err) {
       document.getElementById('codeResult').innerHTML = `<div class="state-message error">${escapeHtml(err.message)}</div>`;
@@ -956,30 +1002,47 @@ function renderLiveOrdersList(orders) {
     return;
   }
 
-  listEl.innerHTML = orders.map((o) => {
-    const pendingPayment = o.payments.some((p) => p.status === 'pending');
-    const itemsHtml = o.items.map((i) => `
-      <div style="padding:4px 0;font-size:0.88rem;">
-        ${i.qty} × ${escapeHtml(i.product_name_snapshot)}
-        ${i.notes ? `<div style="font-size:0.78rem;color:var(--text-muted);font-style:italic;">note: ${escapeHtml(i.notes)}</div>` : ''}
+  // Group by table — a table can carry more than one open order (a
+  // second round ordered after the first), and checkout is one action
+  // across all of them, not order-by-order. Orders with no table
+  // (takeaway/counter) each stay their own single-order group.
+  const groups = {};
+  orders.forEach((o) => {
+    const key = o.table_number || `__single_${o.id}`;
+    if (!groups[key]) groups[key] = { table_number: o.table_number, channel: o.channel, orders: [] };
+    groups[key].orders.push(o);
+  });
+
+  listEl.innerHTML = Object.entries(groups).map(([key, group]) => {
+    const anyPending = group.orders.some((o) => o.payments.some((p) => p.status === 'pending'));
+    const ordersHtml = group.orders.map((o) => `
+      <div style="padding:6px 0;border-top:1px solid var(--ivory-dim);">
+        <div style="font-size:0.72rem;color:var(--text-muted);">${new Date(o.created_at).toLocaleTimeString()}</div>
+        ${o.items.map((i) => `
+          <div style="padding:2px 0;font-size:0.88rem;">
+            ${i.qty} × ${escapeHtml(i.product_name_snapshot)}
+            ${i.notes ? `<div style="font-size:0.78rem;color:var(--text-muted);font-style:italic;">note: ${escapeHtml(i.notes)}</div>` : ''}
+          </div>
+        `).join('')}
+        <button class="btn danger cancel-order-btn" data-id="${o.id}" style="margin-top:4px;padding:2px 10px;font-size:0.76rem;">Cancel this order</button>
       </div>
     `).join('');
 
     return `
-      <div class="card">
+      <div class="card" id="table-group-${key}">
         <div style="display:flex;justify-content:space-between;align-items:start;">
-          <div>
-            <div style="font-weight:700;">${o.table_number ? `Table ${escapeHtml(o.table_number)}` : escapeHtml(o.channel)}</div>
-            <div style="font-size:0.78rem;color:var(--text-muted);">${new Date(o.created_at).toLocaleTimeString()}</div>
-          </div>
-          ${pendingPayment ? `<span class="pill pending">Preparing</span>` : `<span class="pill synced">Payment confirmed</span>`}
+          <div style="font-weight:700;">${group.table_number ? `Table ${escapeHtml(group.table_number)}` : escapeHtml(group.channel)}</div>
+          ${anyPending ? `<span class="pill pending">Kitchen received</span>` : `<span class="pill synced">Payment confirmed</span>`}
         </div>
-        <div style="margin:10px 0;">${itemsHtml}</div>
-        <div style="display:flex;gap:8px;">
-          ${pendingPayment ? `<button class="btn secondary confirm-payment-btn" data-id="${o.id}">Confirm payment</button>` : ''}
-          <button class="btn complete-order-btn" data-id="${o.id}">Mark completed</button>
+        <div>${ordersHtml}</div>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          ${
+            anyPending
+              ? `<button class="btn secondary confirm-payment-btn" data-table="${escapeHtml(group.table_number || '')}" ${!group.table_number ? 'data-order-id="' + group.orders[0].id + '"' : ''}>Confirm payment</button>`
+              : `<button class="btn complete-table-btn" data-table="${escapeHtml(group.table_number || '')}" ${!group.table_number ? 'data-order-id="' + group.orders[0].id + '"' : ''}>Mark completed</button>`
+          }
         </div>
-        <div class="action-error" id="order-error-${o.id}"></div>
+        <div class="action-error" id="group-error-${key}"></div>
       </div>
     `;
   }).join('');
@@ -987,27 +1050,151 @@ function renderLiveOrdersList(orders) {
   listEl.querySelectorAll('.confirm-payment-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
       btn.disabled = true;
+      const errorEl = document.getElementById(`group-error-${btn.dataset.table || '__single_' + btn.dataset.orderId}`);
       try {
-        await api(`/admin/orders/${btn.dataset.id}/confirm-payment`, { method: 'POST' });
+        let receipt;
+        if (btn.dataset.table) {
+          receipt = await api(`/admin/stores/${state.storeId}/tables/${encodeURIComponent(btn.dataset.table)}/confirm-payment`, { method: 'POST' });
+        } else {
+          await api(`/admin/orders/${btn.dataset.orderId}/confirm-payment`, { method: 'POST' });
+          const data = await api(`/admin/stores/${state.storeId}/live-orders`);
+          const order = data.orders.find((o) => o.id === btn.dataset.orderId);
+          receipt = { table_number: null, orders: order ? [order] : [], total: order?.total || 0 };
+        }
+        await showReceipt(receipt);
         await refreshLiveOrdersNow();
       } catch (err) {
         btn.disabled = false;
-        document.getElementById(`order-error-${btn.dataset.id}`).textContent = err.message;
+        if (errorEl) errorEl.textContent = err.message;
       }
     });
   });
-  listEl.querySelectorAll('.complete-order-btn').forEach((btn) => {
+
+  listEl.querySelectorAll('.complete-table-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
       btn.disabled = true;
+      const errorEl = document.getElementById(`group-error-${btn.dataset.table || '__single_' + btn.dataset.orderId}`);
       try {
-        await api(`/admin/orders/${btn.dataset.id}/status`, { method: 'POST', body: { status: 'completed' } });
+        if (btn.dataset.table) {
+          await api(`/admin/stores/${state.storeId}/tables/${encodeURIComponent(btn.dataset.table)}/complete`, { method: 'POST' });
+        } else {
+          await api(`/admin/orders/${btn.dataset.orderId}/status`, { method: 'POST', body: { status: 'completed' } });
+        }
         await refreshLiveOrdersNow();
       } catch (err) {
         btn.disabled = false;
-        document.getElementById(`order-error-${btn.dataset.id}`).textContent = err.message;
+        if (errorEl) errorEl.textContent = err.message;
       }
     });
   });
+
+  listEl.querySelectorAll('.cancel-order-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Cancel this order? The rest of the table\'s orders are unaffected.')) return;
+      btn.disabled = true;
+      try {
+        await api(`/admin/orders/${btn.dataset.id}/status`, { method: 'POST', body: { status: 'voided' } });
+        await refreshLiveOrdersNow();
+      } catch (err) {
+        btn.disabled = false;
+        alert(err.message);
+      }
+    });
+  });
+}
+
+// Draws one combined receipt for everything just confirmed — a flat
+// canvas render rather than building the screen version and the print
+// version separately, so what prints can never drift from what staff
+// saw. The same PNG drives all three: on-screen preview, the local
+// download, and (via /admin/uploads + /admin/stores/:id/print-jobs)
+// whatever hub or print-bridge is running for this store.
+function renderReceiptCanvas(receipt) {
+  const canvas = document.createElement('canvas');
+  const width = 384; // matches 80mm paper at standard ESC/POS print density
+  const lineHeight = 22;
+  const allItems = receipt.orders.flatMap((o) => o.items.map((i) => ({ ...i, orderTime: o.created_at })));
+  const notesCount = allItems.filter((i) => i.notes).length;
+  const height = 140 + allItems.length * lineHeight + notesCount * (lineHeight * 0.8) + 90;
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = '#000';
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 20px monospace';
+  ctx.fillText('RECEIPT', width / 2, 30);
+  ctx.font = '15px monospace';
+  ctx.fillText(receipt.table_number ? `Table ${receipt.table_number}` : 'Takeaway', width / 2, 52);
+  ctx.fillText(new Date().toLocaleString(), width / 2, 72);
+  ctx.textAlign = 'left';
+  ctx.beginPath(); ctx.moveTo(16, 86); ctx.lineTo(width - 16, 86); ctx.stroke();
+
+  let y = 110;
+  allItems.forEach((item) => {
+    ctx.font = '14px monospace';
+    ctx.fillText(`${item.qty} x ${item.product_name_snapshot}`, 16, y);
+    ctx.textAlign = 'right';
+    ctx.fillText(String(item.line_total), width - 16, y);
+    ctx.textAlign = 'left';
+    y += lineHeight;
+    if (item.notes) {
+      ctx.font = 'italic 11px monospace';
+      ctx.fillText(`  note: ${item.notes}`, 16, y);
+      y += lineHeight * 0.8;
+    }
+  });
+
+  ctx.beginPath(); ctx.moveTo(16, y + 6); ctx.lineTo(width - 16, y + 6); ctx.stroke();
+  y += 30;
+  ctx.font = 'bold 17px monospace';
+  ctx.fillText('Total', 16, y);
+  ctx.textAlign = 'right';
+  ctx.fillText(String(receipt.total), width - 16, y);
+
+  return canvas;
+}
+
+// Shows the receipt, saves it to the device as a PNG, and queues it
+// to print — one action covers all three, matching the moment this
+// happens (staff checking a customer out), rather than three separate
+// steps.
+async function showReceipt(receipt) {
+  const canvas = renderReceiptCanvas(receipt);
+  const dataUrl = canvas.toDataURL('image/png');
+
+  const overlay = document.createElement('div');
+  overlay.className = 'receipt-overlay';
+  overlay.innerHTML = `
+    <div class="receipt-modal">
+      <img src="${dataUrl}" alt="Receipt" style="width:100%;border:1px solid var(--ivory-dim);">
+      <div id="receiptPrintStatus" style="font-size:0.8rem;color:var(--text-muted);margin:10px 0;">Saving and sending to the printer…</div>
+      <button class="btn" id="closeReceiptBtn">Close</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.getElementById('closeReceiptBtn').addEventListener('click', () => overlay.remove());
+
+  // Local save — a real file on the device, not just an on-screen image.
+  const downloadLink = document.createElement('a');
+  downloadLink.href = dataUrl;
+  downloadLink.download = `receipt-${receipt.table_number || 'takeaway'}-${Date.now()}.png`;
+  downloadLink.click();
+
+  // Queue to print via whichever hub/print-bridge is running for this store.
+  const statusEl = document.getElementById('receiptPrintStatus');
+  try {
+    const base64 = dataUrl.split(',')[1];
+    const upload = await api('/admin/uploads', {
+      method: 'POST',
+      body: { filename: `receipt-${Date.now()}.png`, contentType: 'image/png', data: base64 },
+    });
+    await api(`/admin/stores/${state.storeId}/print-jobs`, { method: 'POST', body: { image_url: upload.url } });
+    if (statusEl) statusEl.textContent = 'Saved, and queued to print.';
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Saved locally, but couldn't queue the print: ${err.message}`;
+  }
 }
 
 // Re-fetches immediately after an action instead of waiting for the

@@ -74,10 +74,13 @@ router.post('/admin/stores', authenticateUser, async (req, res) => {
 
 // PATCH /admin/stores/:storeId — owner/manager. Covers the settings
 // most likely to change after initial setup (logo, payment QR,
-// ambient audio, menu theme) without needing a full store-recreation
-// flow.
+// ambient audio, menu theme, printer) without needing a full
+// store-recreation flow.
 router.patch('/admin/stores/:storeId', authenticateUser, requireStoreRole(['owner', 'manager']), async (req, res) => {
-  const { name, logo_url, kbzpay_qr_url, ambient_audio_url, ambient_audio_enabled, theme_config } = req.body;
+  const {
+    name, logo_url, kbzpay_qr_url, ambient_audio_url, ambient_audio_enabled, theme_config,
+    printer_enabled, printer_ip, printer_port, printer_model, printer_has_cash_drawer,
+  } = req.body;
   const { rows } = await db.query(
     `UPDATE stores SET
        name = COALESCE($2, name),
@@ -86,9 +89,18 @@ router.patch('/admin/stores/:storeId', authenticateUser, requireStoreRole(['owne
        ambient_audio_url = COALESCE($5, ambient_audio_url),
        ambient_audio_enabled = COALESCE($6, ambient_audio_enabled),
        theme_config = COALESCE($7, theme_config),
+       printer_enabled = COALESCE($8, printer_enabled),
+       printer_ip = COALESCE($9, printer_ip),
+       printer_port = COALESCE($10, printer_port),
+       printer_model = COALESCE($11, printer_model),
+       printer_has_cash_drawer = COALESCE($12, printer_has_cash_drawer),
        updated_at = now()
      WHERE id = $1 RETURNING *`,
-    [req.params.storeId, name, logo_url, kbzpay_qr_url, ambient_audio_url, ambient_audio_enabled, theme_config ? JSON.stringify(theme_config) : null]
+    [
+      req.params.storeId, name, logo_url, kbzpay_qr_url, ambient_audio_url, ambient_audio_enabled,
+      theme_config ? JSON.stringify(theme_config) : null,
+      printer_enabled, printer_ip || null, printer_port || null, printer_model || null, printer_has_cash_drawer,
+    ]
   );
   if (rows.length === 0) return res.status(404).json({ error: 'store_not_found' });
   res.json(rows[0]);
@@ -286,6 +298,22 @@ router.get('/admin/stores/:storeId/live-orders', authenticateUser, requireFeatur
   }
 
   res.json({ orders });
+});
+
+// POST /admin/stores/:storeId/print-jobs — any assigned role. Body:
+// { image_url }. image_url should already exist (upload the receipt
+// PNG via POST /admin/uploads first) — this just queues it for
+// whichever hub or print-bridge is running for the store to pick up
+// on its next poll.
+router.post('/admin/stores/:storeId/print-jobs', authenticateUser, requireStoreRole(['owner', 'manager', 'cashier', 'kitchen_staff']), async (req, res) => {
+  const { image_url } = req.body;
+  if (!image_url) return res.status(400).json({ error: 'image_url_required' });
+
+  const { rows } = await db.query(
+    `INSERT INTO print_jobs (id, store_id, image_url) VALUES (gen_random_uuid(), $1, $2) RETURNING *`,
+    [req.params.storeId, image_url]
+  );
+  res.status(201).json(rows[0]);
 });
 
 module.exports = router;

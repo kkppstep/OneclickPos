@@ -1,0 +1,15 @@
+{
+  "name": "pos-print-bridge",
+  "version": "0.1.0",
+  "description": "Standalone print-only bridge for stores without a full local-hub: registers as a hub, polls for orders that need printing, sends them to a network ESC/POS receipt printer.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.7",
+    "dotenv": "^16.4.5",
+    "node-thermal-printer": "^4.4.4"
+  }
+}
