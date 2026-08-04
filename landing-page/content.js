@@ -181,7 +181,7 @@ const CONTENT = {
     },
     footer: {
       tagline: "ဆိုင်များအတွက် QR မှာယူစနစ် Oneclickpos။",
-      rights: "CopyRight",
+      rights: "©2026",
     },
   },
 };
