@@ -137,7 +137,7 @@ const CONTENT = {
       kicker: "စျေးနှုန်း",
       heading: "ရွေးချယ်စရာ နှစ်မျိုး",
       sub: " CLick on Get : ရက် ၃၀ အခမဲ့ အသုံးပြု လိုက်ပါ . လိုအပ်ရင် ဆက်သွယ်ပါ။",
-      contactNote: "Please Contact to me via telegram @doublepz ",
+      contactNote: "ပြဿနာ တစ်စုံတရာ ရှိပါ က telegram @doublepz ကနေ ဆက်သွယ်လိုက်ပါ  ",
       plans: [
         {
           id: "gold",
