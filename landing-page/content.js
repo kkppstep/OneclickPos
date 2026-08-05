@@ -136,8 +136,8 @@ const CONTENT = {
     pricing: {
       kicker: "စျေးနှုန်း",
       heading: "ရွေးချယ်စရာ နှစ်မျိုး",
-      sub: "ရိုးရှင်းတဲ့ အစီအစဉ်တွေပါ။ အလယ်အလတ် လိုအပ်ရင် ဆက်သွယ်ပါ။",
-      contactNote: "စျေးနှုန်းကို ကျွန်ုပ်တို့ကိုယ်တိုင် သတ်မှတ်ပြီး update လုပ် နိုင်ပါ သေးတယ်နော် ။ ဆက်သွယ်ပါက လက်ရှိစျေးနှုန်းကို အတည်ပြုပေးပါမယ်။",
+      sub: " CLick on Get : ရက် ၃၀ အခမဲ့ အသုံးပြု လိုက်ပါ . လိုအပ်ရင် ဆက်သွယ်ပါ။",
+      contactNote: "Please Contact to me via telegram @doublepz ",
       plans: [
         {
           id: "gold",
@@ -150,9 +150,9 @@ const CONTENT = {
             "ပစ္စည်း ၅၀ အထိ",
             "ဝန်ထမ်းအကောင့် ထည့်နိုင်သည် (ပိုင်ရှင်၊ မန်နေဂျာ၊ ငွေကိုင်၊ မီးဖိုချောင်)",
             "Live order dashboard",
-            "KBZPay, WavePay, CBPay ထောက်ပံ့သည်",
+            "KBZPay, WavePay, CBPay ",
             "Android admin app",
-            "ပုံမှန် အကူအညီ",
+            "Aftersale Support",
           ],
           cta: "Gold ယူမည်",
         },
