@@ -213,6 +213,15 @@ body.authed .tab-bar { display: flex; }
 .pill.awaiting { background: var(--amber-bg); color: var(--amber); }
 .pill.inactive { background: var(--ivory-dim); color: var(--text-muted); }
 
+/* ---------- Myanmar service-request cards ---------- */
+.android-section-title { font-size: 0.9rem; font-weight: 700; color: var(--ink-soft); margin-bottom: 9px; }
+.android-service-request-box { background: #fff; border-radius: var(--radius); padding: 14px 16px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(27,21,18,0.07); }
+.android-service-request-card { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--ivory-dim); }
+.android-service-request-card:last-child { border-bottom: none; }
+.android-service-request-card strong { font-size: 0.94rem; }
+.android-service-request-card span { color: var(--text-muted); font-size: 0.8rem; line-height: 1.7; }
+.android-service-request-card .btn-row { flex-shrink: 0; }
+
 /* ---------- Live order cards ---------- */
 .order-card { background: #fff; border-radius: var(--radius); padding: 14px 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(27,21,18,0.07); }
 .order-card .order-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }

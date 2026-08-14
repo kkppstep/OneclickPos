@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../db');
 const { authenticateUser } = require('../middleware/userAuth');
 const { requireStoreRole } = require('../middleware/roles');
+const { notifyStore } = require('../services/push');
 const router = express.Router();
 
 const REQUEST_TYPES = new Set(['bill', 'staff']);
@@ -32,6 +33,13 @@ router.post('/public/stores/:storeId/service-requests', async (req, res) => {
        RETURNING id, store_id, table_number, request_type, status, created_at`,
       [storeId, tableNumber, requestType]
     );
+    const title = requestType === 'bill' ? 'ဘေလ်တောင်းဆိုချက်' : 'ဝန်ထမ်းခေါ်ဆိုချက်';
+    const body = `စားပွဲအမှတ် ${tableNumber} မှ ${requestType === 'bill' ? 'ဘေလ်တောင်းနေပါသည်' : 'ဝန်ထမ်းခေါ်နေပါသည်'}`;
+    await notifyStore(storeId, ['owner', 'manager', 'cashier'], {
+      title,
+      body,
+      data: { type: 'service_request', request_id: rows[0].id, store_id: storeId, table_number: tableNumber, request_type: requestType },
+    });
     res.status(201).json({ request: rows[0] });
   } catch (err) {
     // A concurrent duplicate is safe to treat as already active.

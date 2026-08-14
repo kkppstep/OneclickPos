@@ -251,7 +251,13 @@ async function registerPush(manual = false) {
       // Tapping a notification (app backgrounded/killed) jumps straight
       // to the live-orders list, since that's the only kind of push
       // this app sends today.
-      Push.addListener('pushNotificationActionPerformed', () => { if (state.token) switchTab('home'); });
+      Push.addListener('pushNotificationActionPerformed', (event) => {
+        if (state.token) switchTab('home');
+        const data = event?.notification?.data || {};
+        if (data.type === 'service_request') {
+          toast(data.request_type === 'bill' ? `စားပွဲအမှတ် ${data.table_number} မှ ဘေလ်တောင်းနေပါသည်` : `စားပွဲအမှတ် ${data.table_number} မှ ဝန်ထမ်းခေါ်နေပါသည်`);
+        }
+      });
     }
 
     await Push.register();
@@ -471,8 +477,13 @@ async function renderHome() {
 
   notifiedIds = new Set();
   setContent(`
-    <h1>Live orders</h1>
-    <div class="subtitle">Updates automatically.</div>
+    <h1>တိုက်ရိုက်အော်ဒါများ</h1>
+    <div class="subtitle">အလိုအလျောက် အပ်ဒိတ်လုပ်ပါမည်။</div>
+    <div class="android-service-request-box">
+      <div class="android-section-title">ဝန်ဆောင်မှု တောင်းဆိုချက်များ</div>
+      <div id="androidServiceRequestsList"><div class="state-message">ဖတ်နေသည်…</div></div>
+    </div>
+    <div class="android-section-title" style="margin-top:18px;">အော်ဒါများ</div>
     <div id="liveOrdersList"><div class="skeleton"></div><div class="skeleton"></div></div>
   `);
 
@@ -480,6 +491,7 @@ async function renderHome() {
   const load = async () => {
     try {
       const data = await api(`/admin/stores/${state.storeId}/live-orders`);
+      await refreshAndroidServiceRequests();
       if (firstLoad) {
         data.orders.forEach((o) => notifiedIds.add(o.id));
         firstLoad = false;
@@ -573,6 +585,38 @@ function renderLiveOrdersList(orders) {
 // Re-fetches immediately after an action (or on app resume) instead of
 // waiting for the next 5s poll tick, without re-triggering the
 // new-order alert for orders already known about.
+async function refreshAndroidServiceRequests() {
+  const list = document.getElementById('androidServiceRequestsList');
+  if (!list || !state.storeId) return;
+  try {
+    const data = await api(`/admin/stores/${state.storeId}/service-requests`);
+    if (!data.requests.length) {
+      list.innerHTML = '<div class="state-message">လက်ရှိ တောင်းဆိုချက် မရှိသေးပါ။</div>';
+      return;
+    }
+    list.innerHTML = data.requests.map((request) => `
+      <div class="android-service-request-card">
+        <div><strong>စားပွဲအမှတ် ${escapeHtml(request.table_number)}</strong><br><span>${request.request_type === 'bill' ? 'ဘေလ်တောင်းနေပါသည်' : 'ဝန်ထမ်းခေါ်နေပါသည်'}</span></div>
+        <div class="btn-row">
+          ${request.status === 'new' ? `<button class="btn secondary small android-ack-btn" data-id="${request.id}">လက်ခံပြီး</button>` : ''}
+          <button class="btn small android-resolve-btn" data-id="${request.id}">ပြီးစီးပါပြီ</button>
+        </div>
+      </div>
+    `).join('');
+    list.querySelectorAll('.android-ack-btn').forEach((button) => button.addEventListener('click', async () => {
+      button.disabled = true;
+      await api(`/admin/service-requests/${button.dataset.id}/acknowledge`, { method: 'POST' });
+      refreshAndroidServiceRequests();
+    }));
+    list.querySelectorAll('.android-resolve-btn').forEach((button) => button.addEventListener('click', async () => {
+      button.disabled = true;
+      await api(`/admin/service-requests/${button.dataset.id}/resolve`, { method: 'POST' });
+      refreshAndroidServiceRequests();
+    }));
+  } catch (err) {
+    list.innerHTML = `<div class="state-message error">${escapeHtml(err.message)}</div>`;
+  }
+}
 async function refreshLiveOrdersNow() {
   if (!state.storeId) return;
   try {
