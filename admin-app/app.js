@@ -77,6 +77,7 @@ const TABS = {
   liveOrders: renderLiveOrders,
   orders: renderOrders,
   analytics: renderAnalytics,
+  serviceRequests: renderServiceRequests,
 };
 
 let liveOrdersInterval = null;
@@ -887,6 +888,91 @@ async function renderStaffTable() {
   });
 }
 
+// ============================================================
+// Customer service requests — Myanmar staff-call queue.
+// ============================================================
+let serviceRequestIds = new Set();
+let serviceRequestAudio = null;
+function serviceRequestBeep() {
+  if (!serviceRequestAudio) return;
+  const now = serviceRequestAudio.currentTime;
+  const oscillator = serviceRequestAudio.createOscillator();
+  const gain = serviceRequestAudio.createGain();
+  oscillator.connect(gain);
+  gain.connect(serviceRequestAudio.destination);
+  oscillator.frequency.value = 740;
+  gain.gain.setValueAtTime(0.12, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+  oscillator.start(now);
+  oscillator.stop(now + 0.45);
+}
+async function renderServiceRequests() {
+  if (!state.storeId) {
+    setContent('<h1>ဝန်ဆောင်မှု တောင်းဆိုချက်များ</h1><div class="state-message">ဆိုင်တစ်ဆိုင်ကို အရင်ရွေးချယ်ပါ။</div>');
+    return;
+  }
+  setContent(`
+    <div class="service-request-header">
+      <div><h1>ဝန်ဆောင်မှု တောင်းဆိုချက်များ</h1><div class="subtitle">စားပွဲများမှ ဘေလ် သို့မဟုတ် ဝန်ထမ်းခေါ်ဆိုမှုများ</div></div>
+      <button class="btn secondary" id="enableServiceAlertsBtn">အသံအချက်ပေးမှု ဖွင့်မည်</button>
+    </div>
+    <div id="serviceRequestsList"><div class="state-message">ဖတ်နေသည်…</div></div>
+  `);
+  document.getElementById('enableServiceAlertsBtn').addEventListener('click', async () => {
+    serviceRequestAudio = new (window.AudioContext || window.webkitAudioContext)();
+    if (Notification?.permission === 'default') await Notification.requestPermission();
+    document.getElementById('enableServiceAlertsBtn').textContent = 'အသံအချက်ပေးမှု ဖွင့်ထားသည်';
+    serviceRequestBeep();
+  });
+  await refreshServiceRequests(true);
+  liveOrdersInterval = setInterval(() => refreshServiceRequests(false), 5000);
+}
+async function refreshServiceRequests(firstLoad) {
+  try {
+    const data = await api(`/admin/stores/${state.storeId}/service-requests`);
+    const fresh = data.requests.filter((request) => !serviceRequestIds.has(request.id));
+    if (!firstLoad && fresh.length) {
+      serviceRequestBeep();
+      if (Notification?.permission === 'granted') new Notification('ဝန်ဆောင်မှု တောင်းဆိုချက်', { body: `${fresh.length} ခု ရှိပါသည်။`, tag: 'service-request' });
+    }
+    data.requests.forEach((request) => serviceRequestIds.add(request.id));
+    renderServiceRequestList(data.requests);
+  } catch (err) {
+    const list = document.getElementById('serviceRequestsList');
+    if (list) list.innerHTML = `<div class="state-message error">${escapeHtml(err.message)}</div>`;
+  }
+}
+function renderServiceRequestList(requests) {
+  const list = document.getElementById('serviceRequestsList');
+  if (!list) return;
+  if (!requests.length) {
+    list.innerHTML = '<div class="service-request-empty">လက်ရှိ တောင်းဆိုချက် မရှိသေးပါ။</div>';
+    return;
+  }
+  list.innerHTML = requests.map((request) => {
+    const isBill = request.request_type === 'bill';
+    const title = isBill ? 'ဘေလ်တောင်းနေပါသည်' : 'ဝန်ထမ်းခေါ်နေပါသည်';
+    const status = request.status === 'new' ? 'အသစ်' : 'လက်ခံပြီး';
+    return `<article class="service-request-card ${request.status === 'new' ? 'is-new' : ''}">
+      <div class="service-request-icon">${isBill ? '🧾' : '🔔'}</div>
+      <div class="service-request-body"><div class="service-request-title">စားပွဲအမှတ် ${escapeHtml(request.table_number)} မှ ${title}</div><div class="service-request-meta">${status} · ${new Date(request.created_at).toLocaleTimeString('my-MM')}</div></div>
+      <div class="service-request-actions">
+        ${request.status === 'new' ? `<button class="btn secondary service-ack-btn" data-id="${request.id}">လက်ခံပြီး</button>` : ''}
+        <button class="btn service-resolve-btn" data-id="${request.id}">ပြီးစီးပါပြီ</button>
+      </div>
+    </article>`;
+  }).join('');
+  document.querySelectorAll('.service-ack-btn').forEach((button) => button.addEventListener('click', async () => {
+    button.disabled = true;
+    await api(`/admin/service-requests/${button.dataset.id}/acknowledge`, { method: 'POST' });
+    refreshServiceRequests(false);
+  }));
+  document.querySelectorAll('.service-resolve-btn').forEach((button) => button.addEventListener('click', async () => {
+    button.disabled = true;
+    await api(`/admin/service-requests/${button.dataset.id}/resolve`, { method: 'POST' });
+    refreshServiceRequests(false);
+  }));
+}
 // ============================================================
 // Live orders — the kitchen/staff working view. Polls every 5s.
 // ============================================================

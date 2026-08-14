@@ -176,6 +176,18 @@ tbody tr:hover { background: #fff; }
 .pill.synced { background: #DCEBD8; color: #2C5A28; }
 .pill.pending { background: #F5E3C6; color: #8A5A17; }
 
+/* ---------- Myanmar customer service requests ---------- */
+.service-request-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+.service-request-card { display: flex; align-items: center; gap: 14px; background: #fff; border: 1px solid var(--ivory-dim); border-left: 5px solid var(--gold); border-radius: 14px; padding: 16px; margin-bottom: 12px; box-shadow: 0 5px 18px rgba(27, 21, 18, 0.08); animation: fadeIn 0.2s ease; }
+.service-request-card.is-new { border-left-color: var(--red); box-shadow: 0 7px 22px rgba(166, 48, 31, 0.14); }
+.service-request-icon { width: 46px; height: 46px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 50%; background: #fff6df; font-size: 1.35rem; }
+.service-request-body { flex: 1; min-width: 0; }
+.service-request-title { font-weight: 700; color: var(--ink); line-height: 1.45; }
+.service-request-meta { color: var(--text-muted); font-size: 0.78rem; margin-top: 5px; }
+.service-request-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.service-request-actions .btn { padding: 8px 12px; font-size: 0.8rem; }
+.service-request-empty { background: rgba(255,255,255,0.72); border: 1px dashed var(--ivory-dim); border-radius: 14px; padding: 58px 20px; text-align: center; color: var(--text-muted); }
+
 /* ---------- States ---------- */
 .state-message { color: var(--text-muted); padding: 48px 0; text-align: center; font-size: 0.92rem; }
 .state-message.error { color: var(--red); }
@@ -230,4 +242,7 @@ tbody tr:hover { background: #fff; }
   .nav-item { flex-shrink: 0; white-space: nowrap; }
   .context { display: none; }
   .content { padding: 20px; }
+  .service-request-header { flex-direction: column; }
+  .service-request-card { align-items: flex-start; flex-wrap: wrap; }
+  .service-request-actions { width: 100%; justify-content: flex-start; margin-left: 60px; }
 }

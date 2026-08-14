@@ -18,6 +18,7 @@ import CartBar from './components/CartBar';
 import AmbientAudioToggle from './components/AmbientAudioToggle';
 import LoadingScreen from './components/LoadingScreen';
 import ErrorScreen from './components/ErrorScreen';
+import StaffCallButton from './components/StaffCallButton';
 import { useCart } from './context/CartContext';
 
 export default function App() {
@@ -161,6 +162,7 @@ export default function App() {
         </div>
 
         <CartBar stage tableNumber={tableNumber} onOpen={() => setCheckoutOpen(true)} />
+        <StaffCallButton storeId={storeId} tableNumber={tableNumber} stage />
 
         <CheckoutModal
           open={checkoutOpen}
@@ -211,6 +213,7 @@ export default function App() {
       </main>
 
       <CartBar onOpen={() => setCheckoutOpen(true)} />
+      <StaffCallButton storeId={storeId} tableNumber={tableNumber} />
 
       <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} stage={false} />
 

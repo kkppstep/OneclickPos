@@ -13,6 +13,7 @@ const orderActionsRouter = require('./routes/orderActions');
 const analyticsRouter = require('./routes/analytics');
 const uploadsRouter = require('./routes/uploads');
 const pushTokensRouter = require('./routes/pushTokens');
+const serviceRequestsRouter = require('./routes/serviceRequests');
 const hubRegistrationRouter = require('./routes/hubRegistration');
 const publicMenuRouter = require('./routes/publicMenu');
 const publicOrdersRouter = require('./routes/publicOrders');
@@ -51,6 +52,7 @@ app.use(orderActionsRouter);
 app.use(analyticsRouter);
 app.use(uploadsRouter);
 app.use(pushTokensRouter);
+app.use(serviceRequestsRouter);
 
 // Everything past this point requires a valid hub API key.
 app.use(authenticateHub, ordersRouter);
