@@ -60,7 +60,7 @@ const CONTENT = {
         {
           id: "gold",
           name: "Gold",
-          price: "25,000 MMK",
+          price: "12,000 MMK",
           period: "/ month",
           tagline: "For a single shop finding its footing.",
           features: [
@@ -77,7 +77,7 @@ const CONTENT = {
         {
           id: "platinum",
           name: "Platinum",
-          price: "45,000 MMK",
+          price: "19,000 MMK",
           period: "/ month",
           tagline: "For shops running more than one location.",
           featured: true,
@@ -142,7 +142,7 @@ const CONTENT = {
         {
           id: "gold",
           name: "Gold",
-          price: "25,000 ကျပ်",
+          price: "12,000 ကျပ်",
           period: "/ လ",
           tagline: "စတင်နေတဲ့ ဆိုင်တစ်ဆိုင်အတွက်။",
           features: [
@@ -159,7 +159,7 @@ const CONTENT = {
         {
           id: "platinum",
           name: "Platinum",
-          price: "45,000 ကျပ်",
+          price: "19,000 ကျပ်",
           period: "/ လ",
           tagline: "ဆိုင်ခွဲ တစ်ခုထက်ပိုသော လုပ်ငန်းအတွက်။",
           featured: true,
