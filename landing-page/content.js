@@ -23,7 +23,7 @@ const ADMIN_SIGNUP_URL = "https://oneclick-pos-gjqa.vercel.app/";
 const CONTENT = {
   en: {
     nav: {
-      brand: "OneClickPOS",
+      brand: "ShinnApp",
       signIn: "Sign in",
     },
     story: {
@@ -105,7 +105,7 @@ const CONTENT = {
 
   mm: {
     nav: {
-      brand: "OneClickPOS",
+      brand: "shinnapp",
       signIn: "ဝင်ရောက်ရန်",
     },
     story: {
@@ -180,7 +180,7 @@ const CONTENT = {
       button: "စတင်မည်",
     },
     footer: {
-      tagline: "ဆိုင်များအတွက် QR မှာယူစနစ် Oneclickpos။",
+      tagline: "ဆိုင်များအတွက် QR မှာယူစနစ် shinnapp။",
       rights: "©2026",
     },
   },
