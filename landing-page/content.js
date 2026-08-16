@@ -18,14 +18,14 @@
 // Where the "Get Gold" / "Get Platinum" buttons send people — your
 // existing admin app's sign-in, which already auto-creates an
 // account on first Google sign-in. Set this to your real deployed URL.
-const ADMIN_SIGNUP_URL = "https://oneclick-pos-gjqa.vercel.app/";
+const ADMIN_SIGNUP_URL = "https://manage.shinnapp.com/";
 // Replace this with the direct APK download URL for the Admin Android app.
-const ADMIN_ANDROID_DOWNLOAD_URL = "PASTE_DIRECT_APK_DOWNLOAD_URL_HERE";
+const ADMIN_ANDROID_DOWNLOAD_URL = "https://whpcjiwdexuvffupkfgc.supabase.co/storage/v1/object/public/app/ShinnApp%20Admin.apk";
 
 const CONTENT = {
   en: {
     nav: {
-      brand: "OneClickPOS",
+      brand: "shinnApp",
       signIn: "Sign in",
     },
     story: {
@@ -107,7 +107,7 @@ const CONTENT = {
 
   mm: {
     nav: {
-      brand: "OneClickPOS",
+      brand: "shinnApp",
       signIn: "ဝင်ရောက်ရန်",
     },
     story: {
@@ -182,8 +182,8 @@ const CONTENT = {
       button: "စတင်မည်",
     },
     footer: {
-      tagline: "ဆိုင်များအတွက် QR မှာယူစနစ် Oneclickpos။",
-      rights: "©2026",
+      tagline: "ဆိုင်များအတွက် QR မှာယူစနစ် shinnapp။",
+      rights: "ShinnApp ©2026",
     },
   },
 };
