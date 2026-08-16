@@ -127,3 +127,5 @@ npx cap sync android
 The wrapper is named **Shinn Admin**. Order notifications use the `admin_orders_high` Android channel with high importance, sound, vibration, public visibility, and FCM high priority. Android users must allow notifications and should not set this channel to silent in system settings.
 
 The notification channel is created automatically by `../admin-app/mobile/app.js` when push registration runs. If the app was installed before this channel was added, uninstall and reinstall the debug APK or reset the channel settings once so Android registers the updated channel.
+
+Receipt photos are saved directly to the Android Gallery in the `Shinn Admin Receipts` album through `@capacitor-community/media`. The existing GitHub Actions workflow already runs `npm install`, `npx cap add android`, and `npx cap sync android`, so no additional YAML step is required for this plugin. The first save may create the album automatically.

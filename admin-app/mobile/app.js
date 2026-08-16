@@ -608,6 +608,27 @@ function showMobileReceiptApproval(tableNumber, orders, onOkay) {
   });
 }
 
+async function savePngToGallery(dataUrl, fileName) {
+  const Media = getPlugin('Media');
+  if (!isNative() || !Media?.savePhoto) {
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = fileName;
+    link.click();
+    return;
+  }
+  const albumName = 'Shinn Admin Receipts';
+  let albums = await Media.getAlbums();
+  let album = (albums.albums || []).find((item) => item.name === albumName);
+  if (!album) {
+    await Media.createAlbum({ name: albumName });
+    albums = await Media.getAlbums();
+    album = (albums.albums || []).find((item) => item.name === albumName);
+  }
+  if (!album?.identifier) throw new Error('Receipt album could not be created');
+  await Media.savePhoto({ path: dataUrl, albumIdentifier: album.identifier, fileName: fileName.replace(/\\.png$/i, '') });
+}
+
 async function saveMobileAggregatedReceipt(tableNumber, orders) {
   const items = aggregateMobileReceiptItems(orders);
   const total = items.reduce((sum, item) => sum + Number(item.line_total || 0), 0);
@@ -621,7 +642,8 @@ async function saveMobileAggregatedReceipt(tableNumber, orders) {
   ctx.textAlign = 'left'; let y = 82;
   items.forEach((item) => { ctx.fillText(`${item.qty} x ${item.product_name_snapshot}`, 16, y); ctx.textAlign = 'right'; ctx.fillText(String(item.line_total), 368, y); ctx.textAlign = 'left'; y += 24; });
   ctx.beginPath(); ctx.moveTo(16, y + 4); ctx.lineTo(368, y + 4); ctx.stroke(); ctx.font = 'bold 16px monospace'; ctx.fillText('Total', 16, y + 30); ctx.textAlign = 'right'; ctx.fillText(String(total), 368, y + 30);
-  const link = document.createElement('a'); link.href = canvas.toDataURL('image/png'); link.download = `receipt-${tableNumber || 'takeaway'}-${Date.now()}.png`; link.click();
+  const fileName = `receipt-${tableNumber || 'takeaway'}-${Date.now()}.png`;
+  await savePngToGallery(canvas.toDataURL('image/png'), fileName);
 }
 
 function showMobileReceiptFinal(tableNumber, orders, onSave) {
