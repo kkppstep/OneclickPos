@@ -18,7 +18,7 @@
 // Where the "Get Gold" / "Get Platinum" buttons send people — your
 // existing admin app's sign-in, which already auto-creates an
 // account on first Google sign-in. Set this to your real deployed URL.
-const ADMIN_SIGNUP_URL = "https://oneclick-pos-gjqa.vercel.app/";
+const ADMIN_SIGNUP_URL = "https://manage.shinnapp.com/";
 
 const CONTENT = {
   en: {
