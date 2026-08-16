@@ -180,8 +180,8 @@ const CONTENT = {
       button: "စတင်မည်",
     },
     footer: {
-      tagline: "ဆိုင်များအတွက် QR မှာယူစနစ် shinnapp။",
-      rights: "©2026",
+      tagline: "ဆိုင်များအတွက် QR မှာယူစနစ် Shinnapp။",
+      rights: "Shinapp ©2026",
     },
   },
 };
