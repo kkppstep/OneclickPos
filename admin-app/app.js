@@ -1122,7 +1122,7 @@ function renderLiveOrdersList(orders) {
       <div class="card" id="table-group-${key}">
         <div style="display:flex;justify-content:space-between;align-items:start;">
           <div style="font-weight:700;">${group.table_number ? `Table ${escapeHtml(group.table_number)}` : escapeHtml(group.channel)}</div>
-          ${!allPrepared ? `<span class="pill pending">Customer ordered</span>` : anyPending ? `<span class="pill pending">Prepared</span>` : `<span class="pill synced">Payment confirmed</span>`}
+          ${!group.orders.some((o) => Boolean(o.prepared_at)) ? `<span class="pill pending">Customer ordered</span>` : !allPrepared ? `<span class="pill pending">Partially prepared</span>` : anyPending ? `<span class="pill pending">Prepared</span>` : `<span class="pill synced">Payment confirmed</span>`}
         </div>
         <div>${ordersHtml}</div>
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px;padding-top:10px;border-top:1px solid var(--ivory-dim);">
@@ -1130,8 +1130,8 @@ function renderLiveOrdersList(orders) {
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
           <button type="button" class="btn secondary order-stage-btn prepared-btn" data-table="${escapeHtml(group.table_number || '')}" ${!group.table_number ? 'data-order-id="' + group.orders[0].id + '"' : ''} ${allPrepared ? 'disabled' : ''}>${allPrepared ? 'Prepared ✓' : 'Prepared'}</button>
-          <button type="button" class="btn secondary order-stage-btn confirm-payment-btn" data-table="${escapeHtml(group.table_number || '')}" data-order-ids="${group.orders.map((o) => o.id).join(',')}" ${!allPrepared || !anyPending ? 'disabled' : ''}>Confirm payment</button>
-          <button type="button" class="btn order-stage-btn complete-table-btn" data-table="${escapeHtml(group.table_number || '')}" ${!group.table_number ? 'data-order-id="' + group.orders[0].id + '"' : ''} ${!allPrepared || anyPending ? 'disabled' : ''}>Mark as complete</button>
+          <button type="button" class="btn secondary order-stage-btn confirm-payment-btn" data-table="${escapeHtml(group.table_number || '')}" data-order-ids="${group.orders.map((o) => o.id).join(',')}" ${!anyPending ? 'disabled' : ''}>Confirm payment</button>
+          <button type="button" class="btn order-stage-btn complete-table-btn" data-table="${escapeHtml(group.table_number || '')}" ${!group.table_number ? 'data-order-id="' + group.orders[0].id + '"' : ''} ${anyPending ? 'disabled' : ''}>Mark as complete</button>
         </div>
         <div class="action-error" id="group-error-${key}"></div>
       </div>
@@ -1175,11 +1175,17 @@ function renderLiveOrdersList(orders) {
           }
         };
         await showCheckoutApproval(preview, async () => {
-          const confirmed = btn.dataset.table
-            ? await api(`/admin/stores/${state.storeId}/tables/${encodeURIComponent(btn.dataset.table)}/confirm-payment`, { method: 'POST' })
-            : await api(`/admin/orders/${encodeURIComponent(orderId)}/confirm-payment`, { method: 'POST' });
+          // Use the same order-level action that works in Admin Android.
+          // Confirm each order from the preview, then keep the preview's
+          // aggregated items for the receipt modal.
+          const orderIds = (preview.orders || []).map((order) => order.id).filter(Boolean);
+          if (!orderIds.length && orderId) orderIds.push(orderId);
+          if (!orderIds.length) throw new Error('No open orders found for this table');
+          for (const id of orderIds) {
+            await api(`/admin/orders/${encodeURIComponent(id)}/confirm-payment`, { method: 'POST' });
+          }
           await refreshLiveOrdersNow();
-          return confirmed.items ? confirmed : { ...preview, items: aggregateReceiptItemsFromOrders(preview.orders || []) };
+          return { ...preview, items: preview.items || aggregateReceiptItemsFromOrders(preview.orders || []) };
         }, finalConfirm);
         btn.disabled = false;
         btn.textContent = originalLabel;
