@@ -1163,21 +1163,26 @@ function renderLiveOrdersList(orders) {
 
       const errorEl = document.getElementById(`group-error-${btn.dataset.table || '__single_' + btn.dataset.orderId}`);
       try {
-        let receipt;
-        if (btn.dataset.table) {
-          // Checkout-time merge: the API selects every prepared, open order
-          // at this table and returns identical products as one receipt line.
-          receipt = await api(`/admin/stores/${state.storeId}/tables/${encodeURIComponent(btn.dataset.table)}/confirm-payment`, { method: 'POST' });
-        } else {
-          const orderId = btn.dataset.orderIds || btn.dataset.orderId;
-          if (!orderId) throw new Error('No order selected');
-          await api(`/admin/orders/${encodeURIComponent(orderId)}/confirm-payment`, { method: 'POST' });
-          const data = await api(`/admin/stores/${state.storeId}/live-orders`);
-          const order = data.orders.find((o) => o.id === orderId);
-          receipt = { table_number: null, orders: order ? [order] : [], items: aggregateReceiptItemsFromOrders(order ? [order] : []), total: Number(order?.total || 0) };
-        }
-        await refreshLiveOrdersNow();
-        await showReceipt(receipt, null);
+        const orderId = btn.dataset.orderIds || btn.dataset.orderId;
+        const preview = btn.dataset.table
+          ? await api(`/admin/stores/${state.storeId}/tables/${encodeURIComponent(btn.dataset.table)}/checkout-preview`)
+          : (() => { throw new Error('Takeaway checkout preview requires an order'); })();
+        const finalConfirm = async (receipt) => {
+          if (btn.dataset.table) {
+            await api(`/admin/stores/${state.storeId}/tables/${encodeURIComponent(btn.dataset.table)}/complete`, { method: 'POST' });
+          } else if (orderId) {
+            await api(`/admin/orders/${encodeURIComponent(orderId)}/status`, { method: 'POST', body: { status: 'completed' } });
+          }
+        };
+        await showCheckoutApproval(preview, async () => {
+          const confirmed = btn.dataset.table
+            ? await api(`/admin/stores/${state.storeId}/tables/${encodeURIComponent(btn.dataset.table)}/confirm-payment`, { method: 'POST' })
+            : await api(`/admin/orders/${encodeURIComponent(orderId)}/confirm-payment`, { method: 'POST' });
+          await refreshLiveOrdersNow();
+          return confirmed.items ? confirmed : { ...preview, items: aggregateReceiptItemsFromOrders(preview.orders || []) };
+        }, finalConfirm);
+        btn.disabled = false;
+        btn.textContent = originalLabel;
             } catch (err) {
         btn.disabled = false;
         btn.textContent = originalLabel;
@@ -1302,6 +1307,44 @@ function renderReceiptCanvas(receipt) {
   ctx.fillText(String(receipt.total), width - 16, y);
 
   return canvas;
+}
+
+async function showCheckoutApproval(preview, onOkay, onFinalConfirm) {
+  const canvas = renderReceiptCanvas(preview);
+  const dataUrl = canvas.toDataURL('image/png');
+  const overlay = document.createElement('div');
+  overlay.className = 'receipt-overlay';
+  overlay.innerHTML = `
+    <div class="receipt-modal">
+      <h2 style="margin-top:0;">Confirm payment?</h2>
+      <p style="color:var(--text-muted);">All open orders for this table will be included in this receipt.</p>
+      <img src="${dataUrl}" alt="Checkout receipt preview" style="width:100%;border:1px solid var(--ivory-dim);">
+      <div id="checkoutApprovalError" class="state-message error" style="display:none;padding:10px 0;"></div>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button class="btn secondary" id="cancelCheckoutBtn">Cancel</button>
+        <button class="btn" id="okayCheckoutBtn">Okay</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.getElementById('cancelCheckoutBtn').addEventListener('click', () => overlay.remove());
+  document.getElementById('okayCheckoutBtn').addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    const errorEl = document.getElementById('checkoutApprovalError');
+    button.disabled = true;
+    document.getElementById('cancelCheckoutBtn').disabled = true;
+    button.textContent = 'Confirming…';
+    try {
+      const confirmedReceipt = await onOkay();
+      overlay.remove();
+      await showReceipt(confirmedReceipt, () => onFinalConfirm(confirmedReceipt));
+    } catch (err) {
+      button.disabled = false;
+      document.getElementById('cancelCheckoutBtn').disabled = false;
+      button.textContent = 'Okay';
+      if (errorEl) { errorEl.textContent = err.message; errorEl.style.display = 'block'; }
+    }
+  });
 }
 
 // Shows the receipt, saves it to the device as a PNG, and queues it

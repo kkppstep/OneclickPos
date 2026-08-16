@@ -590,11 +590,43 @@ function aggregateMobileReceiptItems(orders) {
   return Array.from(groups.values());
 }
 
-function showMobileReceiptPreview(tableNumber, orders) {
+function mobileReceiptHtml(tableNumber, orders, footerHtml = '') {
   const items = aggregateMobileReceiptItems(orders);
   const total = items.reduce((sum, item) => sum + Number(item.line_total || 0), 0);
   const lines = items.map((item) => `<div class="receipt-line"><span>${item.qty} × ${escapeHtml(item.product_name_snapshot)}${item.notes ? `<small> (${escapeHtml(item.notes)})</small>` : ''}</span><strong>${item.line_total.toLocaleString()} MMK</strong></div>`).join('');
-  openSheet(`စားပွဲ ${escapeHtml(tableNumber || '')} ဘေလ်`, `<div class="mobile-receipt-preview">${lines}<hr><div class="receipt-total"><strong>စုစုပေါင်း</strong><strong>${total.toLocaleString()} MMK</strong></div><p class="state-message">Confirm payment ပြီးနောက် ပြင်ဆင်ထားသော order များကို စုစည်းပြထားခြင်း ဖြစ်ပါသည်။</p></div>`);
+  return `<div class="mobile-receipt-preview">${lines}<hr><div class="receipt-total"><strong>စုစုပေါင်း</strong><strong>${total.toLocaleString()} MMK</strong></div>${footerHtml}</div>`;
+}
+
+function showMobileReceiptApproval(tableNumber, orders, onOkay) {
+  const sheet = openSheet(`စားပွဲ ${escapeHtml(tableNumber || '')} ဘေလ်စစ်ဆေးရန်`, `${mobileReceiptHtml(tableNumber, orders, '<p class="state-message">စားပွဲ၏ open orders အားလုံးကို ပေါင်းစည်းထားပါသည်။</p>')}<div class="btn-row"><button class="btn secondary" id="mobileCancelCheckoutBtn">Cancel</button><button class="btn" id="mobileOkayCheckoutBtn">Okay</button></div><div id="mobileCheckoutError" class="action-error"></div>`);
+  sheet.querySelector('#mobileCancelCheckoutBtn').addEventListener('click', closeSheet);
+  sheet.querySelector('#mobileOkayCheckoutBtn').addEventListener('click', async (event) => {
+    const okay = event.currentTarget;
+    okay.disabled = true;
+    sheet.querySelector('#mobileCancelCheckoutBtn').disabled = true;
+    try { closeSheet(); await onOkay(); } catch (err) { okay.disabled = false; sheet.querySelector('#mobileCancelCheckoutBtn').disabled = false; sheet.querySelector('#mobileCheckoutError').textContent = err.message; }
+  });
+}
+
+async function saveMobileAggregatedReceipt(tableNumber, orders) {
+  const items = aggregateMobileReceiptItems(orders);
+  const total = items.reduce((sum, item) => sum + Number(item.line_total || 0), 0);
+  const canvas = document.createElement('canvas');
+  canvas.width = 384;
+  canvas.height = 150 + items.length * 24;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.fillStyle = '#000';
+  ctx.textAlign = 'center'; ctx.font = 'bold 20px monospace'; ctx.fillText('RECEIPT', 192, 28);
+  ctx.font = '14px monospace'; ctx.fillText(tableNumber ? `Table ${tableNumber}` : 'Takeaway', 192, 50);
+  ctx.textAlign = 'left'; let y = 82;
+  items.forEach((item) => { ctx.fillText(`${item.qty} x ${item.product_name_snapshot}`, 16, y); ctx.textAlign = 'right'; ctx.fillText(String(item.line_total), 368, y); ctx.textAlign = 'left'; y += 24; });
+  ctx.beginPath(); ctx.moveTo(16, y + 4); ctx.lineTo(368, y + 4); ctx.stroke(); ctx.font = 'bold 16px monospace'; ctx.fillText('Total', 16, y + 30); ctx.textAlign = 'right'; ctx.fillText(String(total), 368, y + 30);
+  const link = document.createElement('a'); link.href = canvas.toDataURL('image/png'); link.download = `receipt-${tableNumber || 'takeaway'}-${Date.now()}.png`; link.click();
+}
+
+function showMobileReceiptFinal(tableNumber, orders, onSave) {
+  const sheet = openSheet(`စားပွဲ ${escapeHtml(tableNumber || '')} ဘေလ်`, `${mobileReceiptHtml(tableNumber, orders, '<p class="state-message">Payment confirmed. Receipt ကို device ထဲသိမ်းရန် အောက်ပါခလုတ်ကိုနှိပ်ပါ။</p>')}<button class="btn" id="mobileSaveReceiptBtn">Save receipt photo</button>`);
+  sheet.querySelector('#mobileSaveReceiptBtn').addEventListener('click', async (event) => { event.currentTarget.disabled = true; try { await onSave(); closeSheet(); toast('Receipt saved'); } catch (err) { event.currentTarget.disabled = false; sheet.querySelector('.state-message').textContent = err.message; } });
 }
 
 function renderLiveOrdersList(orders) {
@@ -648,14 +680,17 @@ function renderLiveOrdersList(orders) {
     try {
       const current = orders.find((item) => item.id === btn.dataset.id);
       const checkoutOrders = current?.table_number
-        ? orders.filter((item) => item.table_number === current.table_number && item.prepared_at && item.payments.some((p) => p.status === 'pending'))
+        ? orders.filter((item) => item.table_number === current.table_number)
         : [current].filter(Boolean);
-      for (const order of checkoutOrders) {
-        await api(`/admin/orders/${order.id}/confirm-payment`, { method: 'POST' });
-      }
-      showMobileReceiptPreview(current?.table_number, checkoutOrders);
-      toast('Payment confirmed');
-      await refreshLiveOrdersNow();
+      showMobileReceiptApproval(current?.table_number, checkoutOrders, async () => {
+        for (const order of checkoutOrders) await api(`/admin/orders/${order.id}/confirm-payment`, { method: 'POST' });
+        showMobileReceiptFinal(current?.table_number, checkoutOrders, async () => {
+          await saveMobileAggregatedReceipt(current?.table_number, checkoutOrders);
+          for (const order of checkoutOrders) await api(`/admin/orders/${order.id}/status`, { method: 'POST', body: { status: 'completed' } });
+          await refreshLiveOrdersNow();
+        });
+      });
+      btn.disabled = false;
     } catch (err) {
       btn.disabled = false;
       document.getElementById(`order-error-${btn.dataset.id}`).textContent = `Payment failed: ${err.message}`;

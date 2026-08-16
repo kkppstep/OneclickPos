@@ -30,7 +30,6 @@ router.post('/admin/orders/:id/confirm-payment', authenticateUser, async (req, r
   const { order, role } = await getCallerRoleAtOrdersStore(req.user.id, req.params.id);
   if (!order) return res.status(404).json({ error: 'order_not_found' });
   if (order.status !== 'open') return res.status(400).json({ error: 'order_not_open' });
-  if (!order.prepared_at) return res.status(400).json({ error: 'order_not_prepared' });
   if (!canConfirmPayment(role)) return res.status(403).json({ error: 'insufficient_role' });
 
   const { rows } = await db.query(
@@ -68,7 +67,6 @@ router.post('/admin/orders/:id/status', authenticateUser, async (req, res) => {
   }
 
   if (status === 'completed') {
-    if (!order.prepared_at) return res.status(400).json({ error: 'order_not_prepared' });
     const pending = await db.query(
       `SELECT 1 FROM payments WHERE order_id = $1 AND status = 'pending' LIMIT 1`,
       [req.params.id]
@@ -132,7 +130,7 @@ async function openOrdersForTable(storeId, tableNumber) {
        (SELECT COALESCE(json_agg(oi.* ORDER BY oi.created_at), '[]') FROM order_items oi WHERE oi.order_id = o.id) AS items,
        (SELECT COALESCE(json_agg(p.*), '[]') FROM payments p WHERE p.order_id = o.id) AS payments
      FROM orders o
-     WHERE o.store_id = $1 AND o.table_number = $2 AND o.status = 'open' AND o.prepared_at IS NOT NULL
+     WHERE o.store_id = $1 AND o.table_number = $2 AND o.status = 'open'
      ORDER BY o.created_at`,
     [storeId, tableNumber]
   );
@@ -163,6 +161,19 @@ router.post('/admin/stores/:storeId/tables/:tableNumber/prepared', authenticateU
   );
   if (!rows.length) return res.status(404).json({ error: 'no_open_orders_for_table' });
   res.json({ table_number: req.params.tableNumber, orders: rows });
+});
+
+// GET /admin/stores/:storeId/tables/:tableNumber/checkout-preview —
+// Read-only checkout preview. It includes every open order at the table;
+// payment is not changed until the POST confirm-payment action.
+router.get('/admin/stores/:storeId/tables/:tableNumber/checkout-preview', authenticateUser, async (req, res) => {
+  const role = await getCallerRoleAtStore(req.user.id, req.params.storeId);
+  if (!canConfirmPayment(role)) return res.status(403).json({ error: 'insufficient_role' });
+  const orders = await openOrdersForTable(req.params.storeId, req.params.tableNumber);
+  if (orders.length === 0) return res.status(404).json({ error: 'no_open_orders_for_table' });
+  const items = aggregateReceiptItems(orders);
+  const total = items.reduce((sum, item) => sum + Number(item.line_total || 0), 0);
+  res.json({ table_number: req.params.tableNumber, orders, items, total });
 });
 
 // POST /admin/stores/:storeId/tables/:tableNumber/confirm-payment —
