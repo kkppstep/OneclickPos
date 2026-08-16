@@ -25,7 +25,7 @@ const ADMIN_ANDROID_DOWNLOAD_URL = "https://whpcjiwdexuvffupkfgc.supabase.co/sto
 const CONTENT = {
   en: {
     nav: {
-      brand: ""ရှင်း : ShinnApp,
+      brand: "ရှင်း : ShinnApp",
       signIn: "Sign in",
     },
     story: {
