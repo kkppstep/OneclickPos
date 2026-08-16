@@ -560,9 +560,12 @@ function renderLiveOrdersList(orders) {
 
   listEl.innerHTML = orders.map((o) => {
     const pendingPayment = o.payments.some((p) => p.status === 'pending');
+    const prepared = Boolean(o.prepared_at);
     const itemsHtml = o.items.map((i) => `
-      <div class="order-item-line">${i.qty} &times; ${escapeHtml(i.product_name_snapshot)}
-        ${i.notes ? `<div class="note">note: ${escapeHtml(i.notes)}</div>` : ''}
+      <div class="order-item-line" style="display:flex;justify-content:space-between;gap:8px;">
+        <span>${i.qty} &times; ${escapeHtml(i.product_name_snapshot)} <small>(${Number(i.unit_price || 0).toLocaleString()} MMK)</small></span>
+        <strong>${Number(i.line_total || 0).toLocaleString()} MMK</strong>
+        ${i.notes ? `<div class="note">မှတ်ချက်: ${escapeHtml(i.notes)}</div>` : ''}
       </div>
     `).join('');
 
@@ -573,38 +576,39 @@ function renderLiveOrdersList(orders) {
             <div class="order-table">${o.table_number ? `Table ${escapeHtml(o.table_number)}` : escapeHtml(o.channel)}</div>
             <div class="order-time">${new Date(o.created_at).toLocaleTimeString()}</div>
           </div>
-          ${pendingPayment ? `<span class="pill awaiting">Prepared</span>` : `<span class="pill paid">Payment confirmed</span>`}
+          ${!prepared ? `<span class="pill awaiting">Customer ordered</span>` : pendingPayment ? `<span class="pill awaiting">Prepared</span>` : `<span class="pill paid">Payment confirmed</span>`}
         </div>
         <div>${itemsHtml}</div>
         <div class="btn-row" style="margin-top:10px;">
-          ${canConfirmPayment ? `<button class="btn ${pendingPayment ? 'secondary ' : ''}small checkout-order-btn" data-id="${o.id}" data-pending="${pendingPayment}">${pendingPayment ? 'Confirm payment' : 'Final confirmation'}</button>` : ''}
+          <button class="btn secondary small android-prepared-btn" data-id="${o.id}" ${prepared ? 'disabled' : ''}>${prepared ? 'Prepared ✓' : 'Prepared'}</button>
+          ${canConfirmPayment ? `<button class="btn secondary small android-confirm-payment-btn" data-id="${o.id}" ${!prepared || !pendingPayment ? 'disabled' : ''}>Confirm payment</button>` : ''}
+          <button class="btn small android-complete-btn" data-id="${o.id}" ${!prepared || pendingPayment ? 'disabled' : ''}>Mark as complete</button>
         </div>
         <div class="action-error" id="order-error-${o.id}"></div>
       </div>
     `;
   }).join('');
 
-  listEl.querySelectorAll('.checkout-order-btn').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      btn.disabled = true;
-      try {
-        if (btn.dataset.pending === 'true') {
-          await api(`/admin/orders/${btn.dataset.id}/confirm-payment`, { method: 'POST' });
-          toast('Payment confirmed');
-        } else {
-          const order = orders.find((item) => item.id === btn.dataset.id);
-          await saveMobileReceiptImage(order);
-          await api(`/admin/orders/${btn.dataset.id}/status`, { method: 'POST', body: { status: 'completed' } });
-          toast('Final confirmation saved');
-        }
-        await refreshLiveOrdersNow();
-      } catch (err) {
-        btn.disabled = false;
-        const errEl = document.getElementById(`order-error-${btn.dataset.id}`);
-        if (errEl) errEl.textContent = err.message;
-      }
-    });
-  });
+  listEl.querySelectorAll('.android-prepared-btn').forEach((btn) => btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try { await api(`/admin/orders/${btn.dataset.id}/prepared`, { method: 'POST' }); await refreshLiveOrdersNow(); }
+    catch (err) { btn.disabled = false; document.getElementById(`order-error-${btn.dataset.id}`).textContent = `Prepared failed: ${err.message}`; }
+  }));
+  listEl.querySelectorAll('.android-confirm-payment-btn').forEach((btn) => btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try { await api(`/admin/orders/${btn.dataset.id}/confirm-payment`, { method: 'POST' }); toast('Payment confirmed'); await refreshLiveOrdersNow(); }
+    catch (err) { btn.disabled = false; document.getElementById(`order-error-${btn.dataset.id}`).textContent = `Payment failed: ${err.message}`; }
+  }));
+  listEl.querySelectorAll('.android-complete-btn').forEach((btn) => btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try {
+      const order = orders.find((item) => item.id === btn.dataset.id);
+      await saveMobileReceiptImage(order);
+      await api(`/admin/orders/${btn.dataset.id}/status`, { method: 'POST', body: { status: 'completed' } });
+      toast('Final confirmation saved');
+      await refreshLiveOrdersNow();
+    } catch (err) { btn.disabled = false; document.getElementById(`order-error-${btn.dataset.id}`).textContent = `Completion failed: ${err.message}`; }
+  }));
   listEl.querySelectorAll('.complete-order-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
       btn.disabled = true;

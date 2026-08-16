@@ -279,7 +279,7 @@ router.get('/admin/orders', authenticateUser, requireStoreRole(['owner', 'manage
 // view (not just owner/manager), since kitchen staff need this too.
 router.get('/admin/stores/:storeId/live-orders', authenticateUser, requireFeature('live_orders'), requireStoreRole(['owner', 'manager', 'cashier', 'kitchen_staff']), async (req, res) => {
   const ordersRes = await db.query(
-    `SELECT id, table_number, channel, status, total, created_at
+    `SELECT id, table_number, channel, status, total, prepared_at, created_at
      FROM orders WHERE store_id = $1 AND status = 'open' ORDER BY created_at ASC`,
     [req.params.storeId]
   );
@@ -287,7 +287,7 @@ router.get('/admin/stores/:storeId/live-orders', authenticateUser, requireFeatur
   const orders = [];
   for (const order of ordersRes.rows) {
     const itemsRes = await db.query(
-      'SELECT product_name_snapshot, qty, notes FROM order_items WHERE order_id = $1',
+      'SELECT product_name_snapshot, qty, unit_price, line_total, notes FROM order_items WHERE order_id = $1',
       [order.id]
     );
     const paymentsRes = await db.query(

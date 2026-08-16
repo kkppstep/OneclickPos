@@ -108,6 +108,32 @@ async function openOrdersForTable(storeId, tableNumber) {
   return rows;
 }
 
+// POST /admin/orders/:id/prepared — marks one order as prepared.
+router.post('/admin/orders/:id/prepared', authenticateUser, async (req, res) => {
+  const { order, role } = await getCallerRoleAtOrdersStore(req.user.id, req.params.id);
+  if (!order) return res.status(404).json({ error: 'order_not_found' });
+  if (!role) return res.status(403).json({ error: 'insufficient_role' });
+  const { rows } = await db.query(
+    `UPDATE orders SET prepared_at = COALESCE(prepared_at, now()), prepared_by = COALESCE(prepared_by, $1)
+     WHERE id = $2 AND status = 'open' RETURNING id, prepared_at`,
+    [req.user.id, req.params.id]
+  );
+  res.json({ order: rows[0] });
+});
+
+// POST /admin/stores/:storeId/tables/:tableNumber/prepared — marks every open order at a table as prepared.
+router.post('/admin/stores/:storeId/tables/:tableNumber/prepared', authenticateUser, async (req, res) => {
+  const role = await getCallerRoleAtStore(req.user.id, req.params.storeId);
+  if (!role) return res.status(403).json({ error: 'insufficient_role' });
+  const { rows } = await db.query(
+    `UPDATE orders SET prepared_at = COALESCE(prepared_at, now()), prepared_by = COALESCE(prepared_by, $1)
+     WHERE store_id = $2 AND table_number = $3 AND status = 'open' RETURNING id, prepared_at`,
+    [req.user.id, req.params.storeId, req.params.tableNumber]
+  );
+  if (!rows.length) return res.status(404).json({ error: 'no_open_orders_for_table' });
+  res.json({ table_number: req.params.tableNumber, orders: rows });
+});
+
 // POST /admin/stores/:storeId/tables/:tableNumber/confirm-payment —
 // owner/manager. Finds every still-open order at this table, confirms
 // any pending payments on all of them, and returns the combined set

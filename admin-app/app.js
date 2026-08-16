@@ -1101,16 +1101,20 @@ function renderLiveOrdersList(orders) {
 
   listEl.innerHTML = Object.entries(groups).map(([key, group]) => {
     const anyPending = group.orders.some((o) => o.payments.some((p) => p.status === 'pending'));
+    const allPrepared = group.orders.every((o) => Boolean(o.prepared_at));
+    const groupTotal = group.orders.reduce((sum, order) => sum + Number(order.total || 0), 0);
     const ordersHtml = group.orders.map((o) => `
-      <div style="padding:6px 0;border-top:1px solid var(--ivory-dim);">
+      <div style="padding:8px 0;border-top:1px solid var(--ivory-dim);">
         <div style="font-size:0.72rem;color:var(--text-muted);">${new Date(o.created_at).toLocaleTimeString()}</div>
         ${o.items.map((i) => `
-          <div style="padding:2px 0;font-size:0.88rem;">
-            ${i.qty} × ${escapeHtml(i.product_name_snapshot)}
-            ${i.notes ? `<div style="font-size:0.78rem;color:var(--text-muted);font-style:italic;">note: ${escapeHtml(i.notes)}</div>` : ''}
+          <div style="display:flex;justify-content:space-between;gap:12px;padding:4px 0;font-size:0.88rem;">
+            <span>${i.qty} × ${escapeHtml(i.product_name_snapshot)} <span style="color:var(--text-muted);font-size:0.78rem;">(${Number(i.unit_price || 0).toLocaleString()} MMK)</span></span>
+            <strong style="white-space:nowrap;">${Number(i.line_total || (Number(i.qty || 0) * Number(i.unit_price || 0))).toLocaleString()} MMK</strong>
           </div>
+          ${i.notes ? `<div style="font-size:0.78rem;color:var(--text-muted);font-style:italic;">မှတ်ချက်: ${escapeHtml(i.notes)}</div>` : ''}
         `).join('')}
-        <button class="btn danger cancel-order-btn" data-id="${o.id}" style="margin-top:4px;padding:2px 10px;font-size:0.76rem;">Cancel this order</button>
+        <div style="display:flex;justify-content:flex-end;font-weight:700;margin-top:6px;">အော်ဒါစုစုပေါင်း: ${Number(o.total || 0).toLocaleString()} MMK</div>
+        <button type="button" class="btn danger cancel-order-btn" data-id="${o.id}" style="margin-top:6px;padding:2px 10px;font-size:0.76rem;">Cancel this order</button>
       </div>
     `).join('');
 
@@ -1118,20 +1122,45 @@ function renderLiveOrdersList(orders) {
       <div class="card" id="table-group-${key}">
         <div style="display:flex;justify-content:space-between;align-items:start;">
           <div style="font-weight:700;">${group.table_number ? `Table ${escapeHtml(group.table_number)}` : escapeHtml(group.channel)}</div>
-          ${anyPending ? `<span class="pill pending">Prepared</span>` : `<span class="pill synced">Payment confirmed</span>`}
+          ${!allPrepared ? `<span class="pill pending">Customer ordered</span>` : anyPending ? `<span class="pill pending">Prepared</span>` : `<span class="pill synced">Payment confirmed</span>`}
         </div>
         <div>${ordersHtml}</div>
-        <div style="display:flex;gap:8px;margin-top:10px;">
-          <button class="btn ${anyPending ? 'secondary' : ''} confirm-payment-btn" data-table="${escapeHtml(group.table_number || '')}" ${!group.table_number ? 'data-order-id="' + group.orders[0].id + '"' : ''}>${anyPending ? 'Confirm payment' : 'Final confirmation'}</button>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px;padding-top:10px;border-top:1px solid var(--ivory-dim);">
+          <strong>စားပွဲစုစုပေါင်း: ${groupTotal.toLocaleString()} MMK</strong>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+          <button type="button" class="btn secondary order-stage-btn prepared-btn" data-table="${escapeHtml(group.table_number || '')}" ${!group.table_number ? 'data-order-id="' + group.orders[0].id + '"' : ''} ${allPrepared ? 'disabled' : ''}>${allPrepared ? 'Prepared ✓' : 'Prepared'}</button>
+          <button type="button" class="btn secondary order-stage-btn confirm-payment-btn" data-table="${escapeHtml(group.table_number || '')}" ${!group.table_number ? 'data-order-id="' + group.orders[0].id + '"' : ''} ${!allPrepared || !anyPending ? 'disabled' : ''}>Confirm payment</button>
+          <button type="button" class="btn order-stage-btn complete-table-btn" data-table="${escapeHtml(group.table_number || '')}" ${!group.table_number ? 'data-order-id="' + group.orders[0].id + '"' : ''} ${!allPrepared || anyPending ? 'disabled' : ''}>Mark as complete</button>
         </div>
         <div class="action-error" id="group-error-${key}"></div>
       </div>
     `;
   }).join('');
 
-  listEl.querySelectorAll('.confirm-payment-btn').forEach((btn) => {
-    btn.addEventListener('click', async () => {
+    listEl.querySelectorAll('.prepared-btn').forEach((btn) => {
+    btn.addEventListener('click', async (event) => {
+      event.preventDefault();
       btn.disabled = true;
+      const errorEl = document.getElementById(`group-error-${btn.dataset.table || '__single_' + btn.dataset.orderId}`);
+      try {
+        if (btn.dataset.table) await api(`/admin/stores/${state.storeId}/tables/${encodeURIComponent(btn.dataset.table)}/prepared`, { method: 'POST' });
+        else await api(`/admin/orders/${btn.dataset.orderId}/prepared`, { method: 'POST' });
+        await refreshLiveOrdersNow();
+      } catch (err) {
+        btn.disabled = false;
+        if (errorEl) errorEl.textContent = `Prepared failed: ${err.message}`;
+      }
+    });
+  });
+  listEl.querySelectorAll('.confirm-payment-btn').forEach((btn) => {
+    btn.addEventListener('click', async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      btn.disabled = true;
+      const originalLabel = btn.textContent;
+      btn.textContent = 'Processing…';
+
       const errorEl = document.getElementById(`group-error-${btn.dataset.table || '__single_' + btn.dataset.orderId}`);
       try {
         let receipt;
@@ -1143,38 +1172,37 @@ function renderLiveOrdersList(orders) {
           const order = data.orders.find((o) => o.id === btn.dataset.orderId);
           receipt = { table_number: null, orders: order ? [order] : [], total: order?.total || 0 };
         }
+        await refreshLiveOrdersNow();
+            } catch (err) {
+        btn.disabled = false;
+        btn.textContent = originalLabel;
+        if (errorEl) errorEl.textContent = `Payment action failed: ${err.message}`;
+        else alert(`Payment action failed: ${err.message}`);
+      }
+    });
+  });
+    listEl.querySelectorAll('.complete-table-btn').forEach((btn) => {
+    btn.addEventListener('click', async (event) => {
+      event.preventDefault();
+      btn.disabled = true;
+      const errorEl = document.getElementById(`group-error-${btn.dataset.table || '__single_' + btn.dataset.orderId}`);
+      try {
+        const data = await api(`/admin/stores/${state.storeId}/live-orders`);
+        const receipt = btn.dataset.table
+          ? { table_number: btn.dataset.table, orders: data.orders.filter((o) => o.table_number === btn.dataset.table), total: data.orders.filter((o) => o.table_number === btn.dataset.table).reduce((sum, o) => sum + Number(o.total || 0), 0) }
+          : { table_number: null, orders: data.orders.filter((o) => o.id === btn.dataset.orderId), total: Number(data.orders.find((o) => o.id === btn.dataset.orderId)?.total || 0) };
         await showReceipt(receipt, async () => {
-          if (btn.dataset.table) {
-            await api(`/admin/stores/${state.storeId}/tables/${encodeURIComponent(btn.dataset.table)}/complete`, { method: 'POST' });
-          } else {
-            await api(`/admin/orders/${btn.dataset.orderId}/status`, { method: 'POST', body: { status: 'completed' } });
-          }
+          if (btn.dataset.table) await api(`/admin/stores/${state.storeId}/tables/${encodeURIComponent(btn.dataset.table)}/complete`, { method: 'POST' });
+          else await api(`/admin/orders/${btn.dataset.orderId}/status`, { method: 'POST', body: { status: 'completed' } });
         });
         await refreshLiveOrdersNow();
       } catch (err) {
         btn.disabled = false;
-        if (errorEl) errorEl.textContent = err.message;
+        if (errorEl) errorEl.textContent = `Completion failed: ${err.message}`;
       }
     });
   });
 
-  listEl.querySelectorAll('.complete-table-btn').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      btn.disabled = true;
-      const errorEl = document.getElementById(`group-error-${btn.dataset.table || '__single_' + btn.dataset.orderId}`);
-      try {
-        if (btn.dataset.table) {
-          await api(`/admin/stores/${state.storeId}/tables/${encodeURIComponent(btn.dataset.table)}/complete`, { method: 'POST' });
-        } else {
-          await api(`/admin/orders/${btn.dataset.orderId}/status`, { method: 'POST', body: { status: 'completed' } });
-        }
-        await refreshLiveOrdersNow();
-      } catch (err) {
-        btn.disabled = false;
-        if (errorEl) errorEl.textContent = err.message;
-      }
-    });
-  });
 
   listEl.querySelectorAll('.cancel-order-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
