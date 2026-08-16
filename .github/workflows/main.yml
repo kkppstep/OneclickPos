@@ -28,7 +28,7 @@ on:
     paths:
       - 'admin-app/**'
       - 'admin-mobile-app/**'
-      - '.github/workflows/android-admin-build.yml'
+      - '.github/workflows/main.yml'
   workflow_dispatch: {}
 
 concurrency:
@@ -84,6 +84,9 @@ jobs:
 
       - name: Generate native Android project
         run: npx cap add android
+
+      - name: Generate Android launcher icons from the supplied logo
+        run: npx --yes @capacitor/assets@latest generate --android
 
       - name: Wire up Firebase (google-services.json)
         if: env.HAS_FIREBASE == 'true'
