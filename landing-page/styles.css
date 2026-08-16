@@ -374,6 +374,20 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 560; line-height: 1.
    Final CTA + footer
    ============================================================ */
 .final-cta { text-align: center; padding: 100px 28px 120px; }
+.final-cta-actions { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
+.btn-demo {
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--gold);
+  background: rgba(199, 154, 68, 0.08);
+  color: var(--gold-soft);
+  font-weight: 700;
+  font-size: 0.94rem;
+  border-radius: 999px;
+  padding: 13px 26px;
+  text-align: center;
+  transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.btn-demo:hover { background: var(--gold); color: var(--ink); transform: translateY(-1px); }
 .final-cta h2 { font-size: clamp(1.9rem, 4vw, 2.6rem); margin-bottom: 14px; }
 .final-cta p { color: var(--ivory-faint); font-size: 1.02rem; margin-bottom: 32px; }
 .btn-large { padding: 16px 36px; font-size: 1rem; }
@@ -401,6 +415,8 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 560; line-height: 1.
   .topnav-inner { padding: 14px 18px; }
   .story-section { padding-top: 96px; }
   .pricing-section, .final-cta { padding-left: 20px; padding-right: 20px; }
+  .final-cta-actions { flex-direction: column; align-items: stretch; }
+  .final-cta-actions a { width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {
