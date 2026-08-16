@@ -1130,7 +1130,7 @@ function renderLiveOrdersList(orders) {
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
           <button type="button" class="btn secondary order-stage-btn prepared-btn" data-table="${escapeHtml(group.table_number || '')}" ${!group.table_number ? 'data-order-id="' + group.orders[0].id + '"' : ''} ${allPrepared ? 'disabled' : ''}>${allPrepared ? 'Prepared ✓' : 'Prepared'}</button>
-          <button type="button" class="btn secondary order-stage-btn confirm-payment-btn" data-table="${escapeHtml(group.table_number || '')}" ${!group.table_number ? 'data-order-id="' + group.orders[0].id + '"' : ''} ${!allPrepared || !anyPending ? 'disabled' : ''}>Confirm payment</button>
+          <button type="button" class="btn secondary order-stage-btn confirm-payment-btn" data-table="${escapeHtml(group.table_number || '')}" data-order-ids="${group.orders.map((o) => o.id).join(',')}" ${!allPrepared || !anyPending ? 'disabled' : ''}>Confirm payment</button>
           <button type="button" class="btn order-stage-btn complete-table-btn" data-table="${escapeHtml(group.table_number || '')}" ${!group.table_number ? 'data-order-id="' + group.orders[0].id + '"' : ''} ${!allPrepared || anyPending ? 'disabled' : ''}>Mark as complete</button>
         </div>
         <div class="action-error" id="group-error-${key}"></div>
@@ -1163,14 +1163,12 @@ function renderLiveOrdersList(orders) {
 
       const errorEl = document.getElementById(`group-error-${btn.dataset.table || '__single_' + btn.dataset.orderId}`);
       try {
-        let receipt;
-        if (btn.dataset.table) {
-          receipt = await api(`/admin/stores/${state.storeId}/tables/${encodeURIComponent(btn.dataset.table)}/confirm-payment`, { method: 'POST' });
-        } else {
-          await api(`/admin/orders/${btn.dataset.orderId}/confirm-payment`, { method: 'POST' });
-          const data = await api(`/admin/stores/${state.storeId}/live-orders`);
-          const order = data.orders.find((o) => o.id === btn.dataset.orderId);
-          receipt = { table_number: null, orders: order ? [order] : [], total: order?.total || 0 };
+        const orderIds = (btn.dataset.orderIds || btn.dataset.orderId || '').split(',').filter(Boolean);
+        if (!orderIds.length) throw new Error('No order selected');
+        // Use the same order-level endpoint as Admin Android. For a table
+        // group, confirm every open order so multiple rounds become one bill.
+        for (const orderId of orderIds) {
+          await api(`/admin/orders/${encodeURIComponent(orderId)}/confirm-payment`, { method: 'POST' });
         }
         await refreshLiveOrdersNow();
             } catch (err) {
