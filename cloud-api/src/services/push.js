@@ -85,7 +85,16 @@ async function notifyStore(storeId, roles, { title, body, data = {} }) {
       tokens,
       notification: { title, body },
       data: stringData,
-      android: { priority: 'high' },
+      android: {
+        priority: 'high',
+        notification: {
+          channelId: 'admin_orders_high',
+          sound: 'default',
+          defaultSound: true,
+          defaultVibrateTimings: true,
+          visibility: 'public',
+        },
+      },
     });
 
     // Tokens FCM reports as dead (app uninstalled, reinstalled with a

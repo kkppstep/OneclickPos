@@ -115,6 +115,15 @@ it means you can never update the app under the same listing again.
 - **SKU/barcode fields** on the mobile product form — still fully
   editable from the desktop dashboard, just left off the phone-sized
   quick-add sheet.
-- **Custom app icon/splash screen** — ships with Capacitor's defaults
-  until you run something like `npx capacitor-assets generate` with
-  your own source artwork.
+## Admin branding and urgent notifications
+
+The supplied Shinn logo is included at `resources/icon.png`. Generate the native Android launcher assets after `npm install` with:
+
+```bash
+npx @capacitor/assets generate --android
+npx cap sync android
+```
+
+The wrapper is named **Shinn Admin**. Order notifications use the `admin_orders_high` Android channel with high importance, sound, vibration, public visibility, and FCM high priority. Android users must allow notifications and should not set this channel to silent in system settings.
+
+The notification channel is created automatically by `../admin-app/mobile/app.js` when push registration runs. If the app was installed before this channel was added, uninstall and reinstall the debug APK or reset the channel settings once so Android registers the updated channel.

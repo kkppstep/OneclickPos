@@ -237,6 +237,19 @@ async function registerPush(manual = false) {
       return;
     }
 
+    if (Push.createChannel) {
+      await Push.createChannel({
+        id: 'admin_orders_high',
+        name: 'Order alerts',
+        description: 'Immediate customer order and service-request alerts',
+        importance: 5,
+        sound: 'default',
+        vibration: true,
+        lights: true,
+        lightColor: '#F59E0B',
+      });
+    }
+
     if (!pushListenersWired) {
       pushListenersWired = true;
       Push.addListener('registration', async (tokenResult) => {
@@ -248,6 +261,15 @@ async function registerPush(manual = false) {
         }
       });
       Push.addListener('registrationError', (err) => console.error('[push] registration error:', JSON.stringify(err)));
+      Push.addListener('pushNotificationReceived', (notification) => {
+        const data = notification?.data || {};
+        const table = data.table_number ? `စားပွဲအမှတ် ${data.table_number}` : 'အော်ဒါအသစ်';
+        toast(notification?.title || `${table} မှ အကြောင်းကြားချက်ရှိပါသည်`);
+        if (activeTab === 'home') {
+          playAlertBeep();
+          refreshLiveOrdersNow();
+        }
+      });
       // Tapping a notification (app backgrounded/killed) jumps straight
       // to the live-orders list, since that's the only kind of push
       // this app sends today.

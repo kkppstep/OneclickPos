@@ -1,11 +1,16 @@
 {
   "appId": "com.alphapos.admin",
-  "appName": "Alpla Admin",
+  "appName": "Shinn Admin",
   "webDir": "../admin-app/mobile",
   "server": {
     "androidScheme": "https"
   },
   "android": {
     "backgroundColor": "#1B1512"
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    }
   }
 }
