@@ -229,6 +229,11 @@ body.authed .tab-bar { display: flex; }
 .order-card .order-time { font-size: 0.76rem; color: var(--text-muted); margin-top: 2px; }
 .order-item-line { padding: 3px 0; font-size: 0.88rem; }
 .order-item-line .note { font-size: 0.78rem; color: var(--text-muted); font-style: italic; }
+.mobile-receipt-preview { background: #fff; border-radius: 12px; padding: 12px; }
+.receipt-line, .receipt-total { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--ivory-dim); }
+.receipt-line span { min-width: 0; }
+.receipt-line strong, .receipt-total strong { white-space: nowrap; }
+.mobile-receipt-preview hr { border: 0; border-top: 2px solid var(--ink); margin: 8px 0; }
 
 /* ---------- List rows (products, categories, order history) ---------- */
 .list-row {

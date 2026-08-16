@@ -1163,14 +1163,21 @@ function renderLiveOrdersList(orders) {
 
       const errorEl = document.getElementById(`group-error-${btn.dataset.table || '__single_' + btn.dataset.orderId}`);
       try {
-        const orderIds = (btn.dataset.orderIds || btn.dataset.orderId || '').split(',').filter(Boolean);
-        if (!orderIds.length) throw new Error('No order selected');
-        // Use the same order-level endpoint as Admin Android. For a table
-        // group, confirm every open order so multiple rounds become one bill.
-        for (const orderId of orderIds) {
+        let receipt;
+        if (btn.dataset.table) {
+          // Checkout-time merge: the API selects every prepared, open order
+          // at this table and returns identical products as one receipt line.
+          receipt = await api(`/admin/stores/${state.storeId}/tables/${encodeURIComponent(btn.dataset.table)}/confirm-payment`, { method: 'POST' });
+        } else {
+          const orderId = btn.dataset.orderIds || btn.dataset.orderId;
+          if (!orderId) throw new Error('No order selected');
           await api(`/admin/orders/${encodeURIComponent(orderId)}/confirm-payment`, { method: 'POST' });
+          const data = await api(`/admin/stores/${state.storeId}/live-orders`);
+          const order = data.orders.find((o) => o.id === orderId);
+          receipt = { table_number: null, orders: order ? [order] : [], items: aggregateReceiptItemsFromOrders(order ? [order] : []), total: Number(order?.total || 0) };
         }
         await refreshLiveOrdersNow();
+        await showReceipt(receipt, null);
             } catch (err) {
         btn.disabled = false;
         btn.textContent = originalLabel;
@@ -1223,11 +1230,38 @@ function renderLiveOrdersList(orders) {
 // saw. The same PNG drives all three: on-screen preview, the local
 // download, and (via /admin/uploads + /admin/stores/:id/print-jobs)
 // whatever hub or print-bridge is running for this store.
+function aggregateReceiptItemsFromOrders(orders) {
+  const groups = new Map();
+  for (const order of (orders || [])) {
+    for (const item of (order.items || [])) {
+      const qty = Number(item.qty || 0);
+      const unitPrice = Number(item.unit_price || 0);
+      const notes = item.notes || '';
+      const key = `${item.product_id || item.product_name_snapshot}|${unitPrice}|${notes}`;
+      const existing = groups.get(key);
+      if (existing) {
+        existing.qty += qty;
+        existing.line_total += Number(item.line_total || qty * unitPrice);
+      } else {
+        groups.set(key, {
+          product_id: item.product_id || null,
+          product_name_snapshot: item.product_name_snapshot,
+          qty,
+          unit_price: unitPrice,
+          line_total: Number(item.line_total || qty * unitPrice),
+          notes: notes || null,
+        });
+      }
+    }
+  }
+  return Array.from(groups.values());
+}
+
 function renderReceiptCanvas(receipt) {
   const canvas = document.createElement('canvas');
   const width = 384; // matches 80mm paper at standard ESC/POS print density
   const lineHeight = 22;
-  const allItems = receipt.orders.flatMap((o) => o.items.map((i) => ({ ...i, orderTime: o.created_at })));
+  const allItems = receipt.items || aggregateReceiptItemsFromOrders(receipt.orders || []);
   const notesCount = allItems.filter((i) => i.notes).length;
   const height = 140 + allItems.length * lineHeight + notesCount * (lineHeight * 0.8) + 90;
   canvas.width = width;
@@ -1284,13 +1318,13 @@ async function showReceipt(receipt, onFinalConfirm) {
     <div class="receipt-modal">
       <img src="${dataUrl}" alt="Receipt" style="width:100%;border:1px solid var(--ivory-dim);">
       <div id="receiptPrintStatus" style="font-size:0.8rem;color:var(--text-muted);margin:10px 0;">စစ်ဆေးပြီး နောက်ဆုံးအတည်ပြုပါ။</div>
-      <button class="btn" id="finalConfirmReceiptBtn">Final confirmation</button>
+      ${onFinalConfirm ? '<button class="btn" id="finalConfirmReceiptBtn">Final confirmation</button>' : ''}
       <button class="btn secondary" id="closeReceiptBtn" style="margin-top:8px;">Close</button>
     </div>
   `;
   document.body.appendChild(overlay);
   document.getElementById('closeReceiptBtn').addEventListener('click', () => overlay.remove());
-  document.getElementById('finalConfirmReceiptBtn').addEventListener('click', async (event) => {
+  document.getElementById('finalConfirmReceiptBtn')?.addEventListener('click', async (event) => {
     const button = event.currentTarget;
     button.disabled = true;
     try {

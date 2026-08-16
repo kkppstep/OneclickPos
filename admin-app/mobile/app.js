@@ -570,6 +570,33 @@ async function saveMobileReceiptImage(order) {
   link.download = `receipt-${order.table_number || 'takeaway'}-${Date.now()}.png`;
   link.click();
 }
+function aggregateMobileReceiptItems(orders) {
+  const groups = new Map();
+  for (const order of orders || []) {
+    for (const item of order.items || []) {
+      const qty = Number(item.qty || 0);
+      const unitPrice = Number(item.unit_price || 0);
+      const notes = item.notes || '';
+      const key = `${item.product_id || item.product_name_snapshot}|${unitPrice}|${notes}`;
+      const existing = groups.get(key);
+      if (existing) {
+        existing.qty += qty;
+        existing.line_total += Number(item.line_total || qty * unitPrice);
+      } else {
+        groups.set(key, { product_name_snapshot: item.product_name_snapshot, qty, unit_price: unitPrice, line_total: Number(item.line_total || qty * unitPrice), notes: notes || null });
+      }
+    }
+  }
+  return Array.from(groups.values());
+}
+
+function showMobileReceiptPreview(tableNumber, orders) {
+  const items = aggregateMobileReceiptItems(orders);
+  const total = items.reduce((sum, item) => sum + Number(item.line_total || 0), 0);
+  const lines = items.map((item) => `<div class="receipt-line"><span>${item.qty} × ${escapeHtml(item.product_name_snapshot)}${item.notes ? `<small> (${escapeHtml(item.notes)})</small>` : ''}</span><strong>${item.line_total.toLocaleString()} MMK</strong></div>`).join('');
+  openSheet(`စားပွဲ ${escapeHtml(tableNumber || '')} ဘေလ်`, `<div class="mobile-receipt-preview">${lines}<hr><div class="receipt-total"><strong>စုစုပေါင်း</strong><strong>${total.toLocaleString()} MMK</strong></div><p class="state-message">Confirm payment ပြီးနောက် ပြင်ဆင်ထားသော order များကို စုစည်းပြထားခြင်း ဖြစ်ပါသည်။</p></div>`);
+}
+
 function renderLiveOrdersList(orders) {
   const listEl = document.getElementById('liveOrdersList');
   if (!listEl) return;
@@ -618,8 +645,21 @@ function renderLiveOrdersList(orders) {
   }));
   listEl.querySelectorAll('.android-confirm-payment-btn').forEach((btn) => btn.addEventListener('click', async () => {
     btn.disabled = true;
-    try { await api(`/admin/orders/${btn.dataset.id}/confirm-payment`, { method: 'POST' }); toast('Payment confirmed'); await refreshLiveOrdersNow(); }
-    catch (err) { btn.disabled = false; document.getElementById(`order-error-${btn.dataset.id}`).textContent = `Payment failed: ${err.message}`; }
+    try {
+      const current = orders.find((item) => item.id === btn.dataset.id);
+      const checkoutOrders = current?.table_number
+        ? orders.filter((item) => item.table_number === current.table_number && item.prepared_at && item.payments.some((p) => p.status === 'pending'))
+        : [current].filter(Boolean);
+      for (const order of checkoutOrders) {
+        await api(`/admin/orders/${order.id}/confirm-payment`, { method: 'POST' });
+      }
+      showMobileReceiptPreview(current?.table_number, checkoutOrders);
+      toast('Payment confirmed');
+      await refreshLiveOrdersNow();
+    } catch (err) {
+      btn.disabled = false;
+      document.getElementById(`order-error-${btn.dataset.id}`).textContent = `Payment failed: ${err.message}`;
+    }
   }));
   listEl.querySelectorAll('.android-complete-btn').forEach((btn) => btn.addEventListener('click', async () => {
     btn.disabled = true;

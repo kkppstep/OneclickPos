@@ -11,7 +11,7 @@ function canConfirmPayment(role) { return PAYMENT_CONFIRM_ROLES.includes(role); 
 // in the request) — each looks up the order's store first, then
 // checks the caller's role there.
 async function getCallerRoleAtOrdersStore(userId, orderId) {
-  const orderRes = await db.query('SELECT store_id, tenant_id FROM orders WHERE id = $1', [orderId]);
+  const orderRes = await db.query('SELECT store_id, tenant_id, status, prepared_at FROM orders WHERE id = $1', [orderId]);
   if (orderRes.rows.length === 0) return { order: null, role: null };
   const order = orderRes.rows[0];
   const roleRes = await db.query(
@@ -29,6 +29,8 @@ async function getCallerRoleAtOrdersStore(userId, orderId) {
 router.post('/admin/orders/:id/confirm-payment', authenticateUser, async (req, res) => {
   const { order, role } = await getCallerRoleAtOrdersStore(req.user.id, req.params.id);
   if (!order) return res.status(404).json({ error: 'order_not_found' });
+  if (order.status !== 'open') return res.status(400).json({ error: 'order_not_open' });
+  if (!order.prepared_at) return res.status(400).json({ error: 'order_not_prepared' });
   if (!canConfirmPayment(role)) return res.status(403).json({ error: 'insufficient_role' });
 
   const { rows } = await db.query(
@@ -66,6 +68,7 @@ router.post('/admin/orders/:id/status', authenticateUser, async (req, res) => {
   }
 
   if (status === 'completed') {
+    if (!order.prepared_at) return res.status(400).json({ error: 'order_not_prepared' });
     const pending = await db.query(
       `SELECT 1 FROM payments WHERE order_id = $1 AND status = 'pending' LIMIT 1`,
       [req.params.id]
@@ -95,13 +98,41 @@ async function getCallerRoleAtStore(userId, storeId) {
   return rows[0]?.role || null;
 }
 
+function aggregateReceiptItems(orders) {
+  const groups = new Map();
+  for (const order of orders) {
+    for (const item of (order.items || [])) {
+      const qty = Number(item.qty || 0);
+      const unitPrice = Number(item.unit_price || 0);
+      const notes = item.notes || '';
+      const productKey = item.product_id || item.product_name_snapshot || 'unknown';
+      const key = `${productKey}|${unitPrice}|${notes}`;
+      const existing = groups.get(key);
+      if (existing) {
+        existing.qty += qty;
+        existing.line_total += Number(item.line_total || qty * unitPrice);
+      } else {
+        groups.set(key, {
+          product_id: item.product_id || null,
+          product_name_snapshot: item.product_name_snapshot,
+          qty,
+          unit_price: unitPrice,
+          line_total: Number(item.line_total || qty * unitPrice),
+          notes: notes || null,
+        });
+      }
+    }
+  }
+  return Array.from(groups.values());
+}
+
 async function openOrdersForTable(storeId, tableNumber) {
   const { rows } = await db.query(
     `SELECT o.*,
        (SELECT COALESCE(json_agg(oi.* ORDER BY oi.created_at), '[]') FROM order_items oi WHERE oi.order_id = o.id) AS items,
        (SELECT COALESCE(json_agg(p.*), '[]') FROM payments p WHERE p.order_id = o.id) AS payments
      FROM orders o
-     WHERE o.store_id = $1 AND o.table_number = $2 AND o.status = 'open'
+     WHERE o.store_id = $1 AND o.table_number = $2 AND o.status = 'open' AND o.prepared_at IS NOT NULL
      ORDER BY o.created_at`,
     [storeId, tableNumber]
   );
@@ -157,8 +188,9 @@ router.post('/admin/stores/:storeId/tables/:tableNumber/confirm-payment', authen
 
   // Re-fetch so the response reflects the just-confirmed payment status.
   const confirmedOrders = await openOrdersForTable(req.params.storeId, req.params.tableNumber);
-  const total = confirmedOrders.reduce((sum, o) => sum + Number(o.total), 0);
-  res.json({ table_number: req.params.tableNumber, orders: confirmedOrders, total });
+  const items = aggregateReceiptItems(confirmedOrders);
+  const total = items.reduce((sum, item) => sum + Number(item.line_total || 0), 0);
+  res.json({ table_number: req.params.tableNumber, orders: confirmedOrders, items, total });
 });
 
 // POST /admin/stores/:storeId/tables/:tableNumber/complete — any
