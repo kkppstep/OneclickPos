@@ -1118,15 +1118,11 @@ function renderLiveOrdersList(orders) {
       <div class="card" id="table-group-${key}">
         <div style="display:flex;justify-content:space-between;align-items:start;">
           <div style="font-weight:700;">${group.table_number ? `Table ${escapeHtml(group.table_number)}` : escapeHtml(group.channel)}</div>
-          ${anyPending ? `<span class="pill pending">Kitchen received</span>` : `<span class="pill synced">Payment confirmed</span>`}
+          ${anyPending ? `<span class="pill pending">Prepared</span>` : `<span class="pill synced">Payment confirmed</span>`}
         </div>
         <div>${ordersHtml}</div>
         <div style="display:flex;gap:8px;margin-top:10px;">
-          ${
-            anyPending
-              ? `<button class="btn secondary confirm-payment-btn" data-table="${escapeHtml(group.table_number || '')}" ${!group.table_number ? 'data-order-id="' + group.orders[0].id + '"' : ''}>Confirm payment</button>`
-              : `<button class="btn complete-table-btn" data-table="${escapeHtml(group.table_number || '')}" ${!group.table_number ? 'data-order-id="' + group.orders[0].id + '"' : ''}>Mark completed</button>`
-          }
+          <button class="btn ${anyPending ? 'secondary' : ''} confirm-payment-btn" data-table="${escapeHtml(group.table_number || '')}" ${!group.table_number ? 'data-order-id="' + group.orders[0].id + '"' : ''}>${anyPending ? 'Confirm payment' : 'Final confirmation'}</button>
         </div>
         <div class="action-error" id="group-error-${key}"></div>
       </div>
@@ -1147,7 +1143,13 @@ function renderLiveOrdersList(orders) {
           const order = data.orders.find((o) => o.id === btn.dataset.orderId);
           receipt = { table_number: null, orders: order ? [order] : [], total: order?.total || 0 };
         }
-        await showReceipt(receipt);
+        await showReceipt(receipt, async () => {
+          if (btn.dataset.table) {
+            await api(`/admin/stores/${state.storeId}/tables/${encodeURIComponent(btn.dataset.table)}/complete`, { method: 'POST' });
+          } else {
+            await api(`/admin/orders/${btn.dataset.orderId}/status`, { method: 'POST', body: { status: 'completed' } });
+          }
+        });
         await refreshLiveOrdersNow();
       } catch (err) {
         btn.disabled = false;
@@ -1246,7 +1248,7 @@ function renderReceiptCanvas(receipt) {
 // to print — one action covers all three, matching the moment this
 // happens (staff checking a customer out), rather than three separate
 // steps.
-async function showReceipt(receipt) {
+async function showReceipt(receipt, onFinalConfirm) {
   const canvas = renderReceiptCanvas(receipt);
   const dataUrl = canvas.toDataURL('image/png');
 
@@ -1255,21 +1257,39 @@ async function showReceipt(receipt) {
   overlay.innerHTML = `
     <div class="receipt-modal">
       <img src="${dataUrl}" alt="Receipt" style="width:100%;border:1px solid var(--ivory-dim);">
-      <div id="receiptPrintStatus" style="font-size:0.8rem;color:var(--text-muted);margin:10px 0;">Saving and sending to the printer…</div>
-      <button class="btn" id="closeReceiptBtn">Close</button>
+      <div id="receiptPrintStatus" style="font-size:0.8rem;color:var(--text-muted);margin:10px 0;">စစ်ဆေးပြီး နောက်ဆုံးအတည်ပြုပါ။</div>
+      <button class="btn" id="finalConfirmReceiptBtn">Final confirmation</button>
+      <button class="btn secondary" id="closeReceiptBtn" style="margin-top:8px;">Close</button>
     </div>
   `;
   document.body.appendChild(overlay);
   document.getElementById('closeReceiptBtn').addEventListener('click', () => overlay.remove());
+  document.getElementById('finalConfirmReceiptBtn').addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      await saveReceiptImage(receipt, dataUrl);
+      await onFinalConfirm?.();
+      button.textContent = 'Confirmed and saved';
+      setTimeout(() => overlay.remove(), 450);
+    } catch (err) {
+      button.disabled = false;
+      const status = document.getElementById('receiptPrintStatus');
+      if (status) status.textContent = `Receipt saved, but final confirmation failed: ${err.message}`;
+    }
+  });
 
-  // Local save — a real file on the device, not just an on-screen image.
+}
+
+async function saveReceiptImage(receipt, dataUrl) {
   const downloadLink = document.createElement('a');
   downloadLink.href = dataUrl;
   downloadLink.download = `receipt-${receipt.table_number || 'takeaway'}-${Date.now()}.png`;
   downloadLink.click();
 
-  // Queue to print via whichever hub/print-bridge is running for this store.
   const statusEl = document.getElementById('receiptPrintStatus');
+  if (!statusEl) return;
+  statusEl.textContent = 'ဘေလ်ကို သိမ်းနေသည်…';
   try {
     const base64 = dataUrl.split(',')[1];
     const upload = await api('/admin/uploads', {
@@ -1277,9 +1297,9 @@ async function showReceipt(receipt) {
       body: { filename: `receipt-${Date.now()}.png`, contentType: 'image/png', data: base64 },
     });
     await api(`/admin/stores/${state.storeId}/print-jobs`, { method: 'POST', body: { image_url: upload.url } });
-    if (statusEl) statusEl.textContent = 'Saved, and queued to print.';
+    statusEl.textContent = 'ဘေလ်သိမ်းပြီး ပရင့်ထုတ်ရန် ပေးပို့ပြီးပါပြီ။';
   } catch (err) {
-    if (statusEl) statusEl.textContent = `Saved locally, but couldn't queue the print: ${err.message}`;
+    statusEl.textContent = `ဘေလ်ကို စက်ထဲသိမ်းပြီးပါပြီ၊ ပရင့်မပို့နိုင်ပါ: ${err.message}`;
   }
 }
 

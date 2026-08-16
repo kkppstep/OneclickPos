@@ -3,6 +3,8 @@ const db = require('../db');
 const { authenticateUser } = require('../middleware/userAuth');
 
 const router = express.Router();
+const PAYMENT_CONFIRM_ROLES = ['owner', 'manager', 'cashier'];
+function canConfirmPayment(role) { return PAYMENT_CONFIRM_ROLES.includes(role); }
 
 // Both routes below take an order id, not a store id, so they can't
 // use requireStoreRole directly (it expects store_id already present
@@ -27,7 +29,7 @@ async function getCallerRoleAtOrdersStore(userId, orderId) {
 router.post('/admin/orders/:id/confirm-payment', authenticateUser, async (req, res) => {
   const { order, role } = await getCallerRoleAtOrdersStore(req.user.id, req.params.id);
   if (!order) return res.status(404).json({ error: 'order_not_found' });
-  if (!['owner', 'manager'].includes(role)) return res.status(403).json({ error: 'insufficient_role' });
+  if (!canConfirmPayment(role)) return res.status(403).json({ error: 'insufficient_role' });
 
   const { rows } = await db.query(
     `UPDATE payments SET status = 'confirmed', confirmed_by = 'staff_override', confirmed_at = now()
@@ -113,7 +115,7 @@ async function openOrdersForTable(storeId, tableNumber) {
 // it — this is the "2 orders, 1 bill" case.
 router.post('/admin/stores/:storeId/tables/:tableNumber/confirm-payment', authenticateUser, async (req, res) => {
   const role = await getCallerRoleAtStore(req.user.id, req.params.storeId);
-  if (!['owner', 'manager'].includes(role)) return res.status(403).json({ error: 'insufficient_role' });
+  if (!canConfirmPayment(role)) return res.status(403).json({ error: 'insufficient_role' });
 
   const orders = await openOrdersForTable(req.params.storeId, req.params.tableNumber);
   if (orders.length === 0) return res.status(404).json({ error: 'no_open_orders_for_table' });

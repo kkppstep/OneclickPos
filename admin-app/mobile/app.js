@@ -515,6 +515,39 @@ async function renderHome() {
   pollInterval = setInterval(load, 5000);
 }
 
+async function saveMobileReceiptImage(order) {
+  if (!order) throw new Error('Order data is unavailable');
+  const canvas = document.createElement('canvas');
+  canvas.width = 384;
+  canvas.height = 150 + order.items.length * 24;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#000';
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 20px monospace';
+  ctx.fillText('RECEIPT', 192, 28);
+  ctx.font = '14px monospace';
+  ctx.fillText(order.table_number ? `Table ${order.table_number}` : 'Takeaway', 192, 50);
+  ctx.textAlign = 'left';
+  let y = 82;
+  order.items.forEach((item) => {
+    ctx.fillText(`${item.qty} x ${item.product_name_snapshot}`, 16, y);
+    ctx.textAlign = 'right';
+    ctx.fillText(String(item.line_total), 368, y);
+    ctx.textAlign = 'left';
+    y += 24;
+  });
+  ctx.beginPath(); ctx.moveTo(16, y + 4); ctx.lineTo(368, y + 4); ctx.stroke();
+  ctx.font = 'bold 16px monospace';
+  ctx.fillText('Total', 16, y + 30);
+  ctx.textAlign = 'right';
+  ctx.fillText(String(order.total), 368, y + 30);
+  const link = document.createElement('a');
+  link.href = canvas.toDataURL('image/png');
+  link.download = `receipt-${order.table_number || 'takeaway'}-${Date.now()}.png`;
+  link.click();
+}
 function renderLiveOrdersList(orders) {
   const listEl = document.getElementById('liveOrdersList');
   if (!listEl) return;
@@ -523,7 +556,7 @@ function renderLiveOrdersList(orders) {
     return;
   }
 
-  const canConfirmPayment = ['owner', 'manager'].includes(myRole());
+  const canConfirmPayment = ['owner', 'manager', 'cashier'].includes(myRole());
 
   listEl.innerHTML = orders.map((o) => {
     const pendingPayment = o.payments.some((p) => p.status === 'pending');
@@ -540,24 +573,30 @@ function renderLiveOrdersList(orders) {
             <div class="order-table">${o.table_number ? `Table ${escapeHtml(o.table_number)}` : escapeHtml(o.channel)}</div>
             <div class="order-time">${new Date(o.created_at).toLocaleTimeString()}</div>
           </div>
-          ${pendingPayment ? `<span class="pill awaiting">Awaiting payment</span>` : `<span class="pill paid">Paid</span>`}
+          ${pendingPayment ? `<span class="pill awaiting">Prepared</span>` : `<span class="pill paid">Payment confirmed</span>`}
         </div>
         <div>${itemsHtml}</div>
         <div class="btn-row" style="margin-top:10px;">
-          ${pendingPayment && canConfirmPayment ? `<button class="btn secondary small confirm-payment-btn" data-id="${o.id}">Confirm payment</button>` : ''}
-          <button class="btn small complete-order-btn" data-id="${o.id}">Mark completed</button>
+          ${canConfirmPayment ? `<button class="btn ${pendingPayment ? 'secondary ' : ''}small checkout-order-btn" data-id="${o.id}" data-pending="${pendingPayment}">${pendingPayment ? 'Confirm payment' : 'Final confirmation'}</button>` : ''}
         </div>
         <div class="action-error" id="order-error-${o.id}"></div>
       </div>
     `;
   }).join('');
 
-  listEl.querySelectorAll('.confirm-payment-btn').forEach((btn) => {
+  listEl.querySelectorAll('.checkout-order-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
       btn.disabled = true;
       try {
-        await api(`/admin/orders/${btn.dataset.id}/confirm-payment`, { method: 'POST' });
-        toast('Payment confirmed');
+        if (btn.dataset.pending === 'true') {
+          await api(`/admin/orders/${btn.dataset.id}/confirm-payment`, { method: 'POST' });
+          toast('Payment confirmed');
+        } else {
+          const order = orders.find((item) => item.id === btn.dataset.id);
+          await saveMobileReceiptImage(order);
+          await api(`/admin/orders/${btn.dataset.id}/status`, { method: 'POST', body: { status: 'completed' } });
+          toast('Final confirmation saved');
+        }
         await refreshLiveOrdersNow();
       } catch (err) {
         btn.disabled = false;
