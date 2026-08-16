@@ -388,6 +388,18 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 560; line-height: 1.
   transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 .btn-demo:hover { background: var(--gold); color: var(--ink); transform: translateY(-1px); }
+.btn-admin-download {
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid rgba(246, 239, 224, 0.42);
+  background: rgba(246, 239, 224, 0.06);
+  color: var(--ivory);
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 13px 26px;
+  text-align: center;
+  transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.btn-admin-download:hover { background: var(--ivory); color: var(--ink); transform: translateY(-1px); }
 .final-cta h2 { font-size: clamp(1.9rem, 4vw, 2.6rem); margin-bottom: 14px; }
 .final-cta p { color: var(--ivory-faint); font-size: 1.02rem; margin-bottom: 32px; }
 .btn-large { padding: 16px 36px; font-size: 1rem; }

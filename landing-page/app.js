@@ -85,6 +85,11 @@ function wireLanguageToggle() {
 function wireStaticLinks() {
   document.getElementById('navSignIn').href = ADMIN_SIGNUP_URL;
   document.getElementById('finalCtaBtn').href = ADMIN_SIGNUP_URL;
+  const adminDownloadLink = document.getElementById('adminDownloadLink');
+  if (adminDownloadLink && ADMIN_ANDROID_DOWNLOAD_URL && !ADMIN_ANDROID_DOWNLOAD_URL.includes('PASTE_DIRECT_APK')) {
+    adminDownloadLink.href = ADMIN_ANDROID_DOWNLOAD_URL;
+    adminDownloadLink.hidden = false;
+  }
 }
 
 // ============================================================
