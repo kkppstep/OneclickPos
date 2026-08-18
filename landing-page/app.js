@@ -49,7 +49,9 @@ function renderBestFor() {
   const tagline = document.getElementById('bestForImageTagline');
   const detail = document.getElementById('bestForDetail');
   const tabs = document.getElementById('bestForTabs');
+  const oroHeroLabel = document.getElementById('oroHeroLabel');
   if (!image || !tabs || !detail) return;
+  if (oroHeroLabel) oroHeroLabel.textContent = currentLang === 'mm' ? 'အော်ဒါတွေကို အလွယ်တကူ ထိန်းချုပ်ပါ' : 'Keep every order moving';
   const kickerEl = document.querySelector('[data-i18n="bestFor.kicker"]');
   const headingEl = document.querySelector('[data-i18n="bestFor.heading"]');
   const subEl = document.querySelector('[data-i18n="bestFor.sub"]');
