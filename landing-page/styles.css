@@ -308,8 +308,40 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 560; line-height: 1.
 .notif-line-sub { width: 55%; opacity: 0.55; }
 
 /* ============================================================
-   Pricing
+   Best for category carousel
    ============================================================ */
+.best-for-section { padding: 110px 28px 120px; }
+.best-for-inner { max-width: var(--container); margin: 0 auto; }
+.best-for-heading { max-width: 760px; margin-bottom: 30px; }
+.best-for-heading h2 { max-width: 700px; margin: 8px 0 14px; font-size: clamp(2rem, 4vw, 3.2rem); line-height: 1.08; }
+.best-for-sub { color: var(--ivory-faint); max-width: 620px; font-size: 1rem; line-height: 1.65; margin: 0; }
+.best-for-showcase { position: relative; }
+.best-for-image-wrap { position: relative; min-height: clamp(390px, 54vw, 620px); overflow: hidden; border: 1px solid rgba(246,239,224,0.16); border-radius: 28px; background: #2a1c17; box-shadow: 0 24px 70px rgba(0,0,0,0.22); isolation: isolate; }
+.best-for-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; opacity: 1; transform: scale(1); transition: opacity 0.22s ease, transform 0.5s ease; }
+.best-for-image.is-changing { opacity: 0.35; transform: scale(1.025); }
+.best-for-image-shade { position: absolute; inset: 0; z-index: 1; background: linear-gradient(90deg, rgba(24,15,12,0.88) 0%, rgba(24,15,12,0.48) 43%, rgba(24,15,12,0.04) 78%), linear-gradient(0deg, rgba(24,15,12,0.76) 0%, transparent 42%); pointer-events: none; }
+.best-for-overlay-copy { position: absolute; z-index: 2; left: clamp(24px, 5vw, 72px); top: clamp(28px, 6vw, 72px); max-width: 390px; }
+.best-for-overline, .best-for-detail-label { color: var(--gold-soft); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; }
+.best-for-overlay-copy h3 { margin: 10px 0 10px; color: var(--ivory); font-size: clamp(1.8rem, 4vw, 3.25rem); line-height: 1.04; }
+.best-for-overlay-copy p { margin: 0; color: var(--ivory-faint); line-height: 1.55; max-width: 320px; }
+.best-for-arrow { position: absolute; z-index: 4; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border: 1px solid rgba(246,239,224,0.4); border-radius: 50%; background: rgba(27,21,18,0.62); color: var(--ivory); font-size: 2rem; line-height: 1; cursor: pointer; transition: background 0.2s ease, transform 0.2s ease; }
+.best-for-arrow:hover { background: var(--gold); color: var(--ink); transform: translateY(-50%) scale(1.05); }
+.best-for-arrow-prev { left: 18px; }
+.best-for-arrow-next { right: 18px; }
+.best-for-tabs { position: absolute; z-index: 3; left: 50%; bottom: 22px; display: flex; gap: 8px; width: min(calc(100% - 120px), 920px); transform: translateX(-50%); overflow-x: auto; padding: 5px 3px 7px; scrollbar-width: none; scroll-snap-type: x proximity; }
+.best-for-tabs::-webkit-scrollbar { display: none; }
+.best-for-tab { flex: 0 0 auto; scroll-snap-align: center; border: 1px solid rgba(246,239,224,0.38); border-radius: 999px; padding: 10px 15px; background: rgba(27,21,18,0.66); color: rgba(246,239,224,0.82); font: inherit; font-size: 0.78rem; cursor: pointer; white-space: nowrap; transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s ease; }
+.best-for-tab:hover { border-color: var(--gold); color: var(--ivory); transform: translateY(-1px); }
+.best-for-tab.is-active { border-color: var(--gold-soft); background: var(--gold); color: var(--ink); font-weight: 700; }
+.best-for-detail { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
+.best-for-detail-block { min-height: 150px; padding: 25px 28px; border: 1px solid rgba(246,239,224,0.13); border-radius: 18px; background: rgba(246,239,224,0.045); }
+.best-for-detail-block p { margin: 12px 0 0; color: var(--ivory-faint); line-height: 1.7; }
+.best-for-detail-solution { border-color: rgba(199,154,68,0.35); background: rgba(199,154,68,0.09); }
+
+/* ============================================================
+   Pricing
+   ============================================================
+*/
 .pricing-section { padding: 100px 28px 60px; }
 .pricing-inner { max-width: var(--container); margin: 0 auto; text-align: center; }
 .pricing-kicker { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); margin-bottom: 14px; }
@@ -426,6 +458,17 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 560; line-height: 1.
 @media (max-width: 560px) {
   .topnav-inner { padding: 14px 18px; }
   .story-section { padding-top: 96px; }
+  .best-for-section { padding: 82px 20px 92px; }
+  .best-for-image-wrap { min-height: 510px; border-radius: 22px; }
+  .best-for-image-shade { background: linear-gradient(180deg, rgba(24,15,12,0.56) 0%, rgba(24,15,12,0.08) 48%, rgba(24,15,12,0.86) 100%); }
+  .best-for-overlay-copy { left: 22px; right: 22px; top: 24px; max-width: none; }
+  .best-for-overlay-copy h3 { font-size: 2rem; }
+  .best-for-arrow { top: 42%; width: 38px; height: 38px; font-size: 1.7rem; }
+  .best-for-arrow-prev { left: 12px; }
+  .best-for-arrow-next { right: 12px; }
+  .best-for-tabs { left: 18px; right: 18px; bottom: 20px; width: auto; transform: none; }
+  .best-for-detail { grid-template-columns: 1fr; gap: 12px; }
+  .best-for-detail-block { min-height: 0; padding: 20px; }
   .pricing-section, .final-cta { padding-left: 20px; padding-right: 20px; }
   .final-cta-actions { flex-direction: column; align-items: stretch; }
   .final-cta-actions a { width: 100%; }

@@ -12,6 +12,107 @@ function escapeHtml(str) {
 }
 
 // ============================================================
+// Best for category carousel
+// ============================================================
+const BEST_FOR_CONTENT = {
+  en: {
+    kicker: 'BEST FOR',
+    heading: 'Different shops. One simple order system.',
+    sub: 'Shinapp helps every kind of hospitality business keep orders clear and service moving.',
+    labels: ['Busy restaurant', 'Cozy café', 'KTV restaurant', 'Hotel / motel', 'Dessert shop', 'New shop', 'Quiet service', 'Weak internet', 'Family restaurant'],
+    overlines: ['BUSY SERVICE', 'COZY EXPERIENCE', 'ROOM SERVICE', 'ROOM ORDERING', 'SWEET SERVICE', 'START SIMPLE', 'QUIET SERVICE', 'LOCAL-FIRST', 'FAMILY FRIENDLY'],
+    taglines: ['Keep busy tables and orders organized.', 'Let customers order without breaking the mood.', 'Separate room orders and combine the bill at checkout.', 'Take room-service orders by room number.', 'Make QR ordering feel easy and welcoming.', 'Start your new shop with a system that can grow.', 'Call staff quietly with one tap.', 'Keep serving even when the connection is weak.', 'Make ordering easier for parents and children.'],
+    problems: ['When tables fill up, staff can lose track of which order belongs where.', 'Customers want a calm café experience without calling staff across the room.', 'Room orders can become mixed up, especially at checkout.', 'Room-service requests need to stay connected to the right room.', 'Small dessert shops need a simple, friendly way to receive orders.', 'New owners need a clear system from the first day.', 'Some customers prefer not to call staff out loud.', 'A weak connection should not stop the local order flow.', 'Parents should not need to leave the table just to place another order.'],
+    solutions: ['Track each table, kitchen status, staff request, and combined checkout in one place.', 'Customers scan, order, request help, and ask for the bill from their table.', 'Keep rooms separate in the kitchen and combine the right open orders at checkout.', 'Organize orders by room number and keep service staff informed.', 'Use a clear QR menu and a gentle customer ordering flow.', 'Manage products, staff, orders, and receipts from one simple dashboard.', 'A bell button lets customers request staff or the bill without speaking loudly.', 'Local-friendly workflows keep the shop moving while the connection recovers.', 'Simple, visible buttons make ordering comfortable for families.'],
+    images: ['best-for-busy-restaurant.png', 'best-for-cozy-cafe.png', 'best-for-ktv.png', 'best-for-hotel.png', 'best-for-dessert.png', 'best-for-new-shop.png', 'best-for-quiet-service.png', 'best-for-offline.png', 'best-for-family.png'],
+  },
+  mm: {
+    kicker: 'သင့်တော်သောဆိုင်များ',
+    heading: 'ဆိုင်အမျိုးအစားမတူပေမယ့် အော်ဒါစီမံမှုတစ်ခုတည်းလိုအပ်ပါသည်',
+    sub: 'Shinapp က ဆိုင်အမျိုးအစားမရွေး အော်ဒါများကို ရှင်းလင်းစွာ စီမံပြီး ဝန်ဆောင်မှုပိုမြန်စေပါသည်။',
+    labels: ['လူများတဲ့ဆိုင်များ', 'Cozy Café', 'KTV နှင့် Restaurant', 'Hotel / Motel', 'Cozy အအေးဆိုင်များ', 'အသစ်ဖွင့်မည့်ဆိုင်များ', 'အသံမထွက်ဘဲ ဝန်ဆောင်မှု', 'Internet မကောင်းသောဆိုင်များ', 'မိသားစုလာသောဆိုင်များ'],
+    overlines: ['လူများတဲ့ဆိုင်', 'COZY အတွေ့အကြုံ', 'ROOM SERVICE', 'ROOM ORDERING', 'အအေးနှင့် DESSERT', 'ဆိုင်အသစ်များ', 'ဝန်ဆောင်မှုခေါ်ရန်', 'LOCAL-FIRST', 'မိသားစုအတွက်'],
+    taglines: ['အော်ဒါများလည်း မရောထွေးစေပါ။', 'အေးဆေးသောအတွေ့အကြုံကို မပျက်စေပါ။', 'Room အလိုက် အော်ဒါခွဲပြီး bill စုပါ။', 'Room number အလိုက် order လက်ခံပါ။', 'QR menu ဖြင့် order တင်ရလွယ်ကူစေပါ။', 'စတင်ကတည်းက စနစ်တကျ စီမံပါ။', 'Button တစ်ချက်နှိပ်ပြီး ဝန်ထမ်းခေါ်ပါ။', 'Internet မကောင်းလည်း ဆိုင်အလုပ်မရပ်ပါ။', 'မိသားစုများအတွက် အော်ဒါတင်ရလွယ်ကူစေပါ။'],
+    problems: ['လူများလာတဲ့အခါ ဘယ်အော်ဒါက ဘယ်စားပွဲအတွက်လဲ ရောထွေးနိုင်ပါတယ်။', 'Café ရဲ့ အေးဆေးတဲ့အတွေ့အကြုံကို မပျက်စေဘဲ အော်ဒါလက်ခံဖို့လိုပါတယ်။', 'KTV room တွေရဲ့ order တွေ checkout အချိန်မှာ ရောထွေးနိုင်ပါတယ်။', 'Room service order တွေက သက်ဆိုင်ရာ room နဲ့ ချိတ်ဆက်နေဖို့လိုပါတယ်။', 'အအေးနှင့် dessert ဆိုင်တွေက ရိုးရှင်းပြီး ချစ်စရာကောင်းတဲ့ order flow လိုအပ်ပါတယ်။', 'ဆိုင်အသစ်ဖွင့်ချိန်ကတည်းက စနစ်တကျ စီမံဖို့လိုပါတယ်။', 'Customer တချို့က ဝန်ထမ်းကို အသံနဲ့ မခေါ်ချင်ကြပါဘူး။', 'Internet မကောင်းတာကြောင့် ဆိုင်အလုပ်မရပ်သင့်ပါဘူး။', 'မိဘတွေက စားပွဲကနေ မထဘဲ အော်ဒါထပ်တင်နိုင်သင့်ပါတယ်။'],
+    solutions: ['စားပွဲ၊ မီးဖိုချောင်၊ ဝန်ထမ်းခေါ်မှုနှင့် checkout ကို တစ်နေရာတည်းမှာ စီမံနိုင်ပါတယ်။', 'Customer က စားပွဲကနေ QR scan လုပ်ပြီး order၊ ဘေလ်နှင့် အကူအညီကို တောင်းနိုင်ပါတယ်။', 'Room တွေကို kitchen မှာ သီးခြားထားပြီး checkout အချိန်မှာ သက်ဆိုင်ရာ bill ကို စုနိုင်ပါတယ်။', 'Room number အလိုက် order ခွဲခြားပြီး ဝန်ထမ်းတွေကို အသိပေးနိုင်ပါတယ်။', 'ရှင်းလင်းသော QR menu နှင့် သက်တောင့်သက်သာ order flow ကို အသုံးပြုနိုင်ပါတယ်။', 'Product၊ staff၊ order နှင့် receipt များကို dashboard တစ်ခုတည်းက စီမံနိုင်ပါတယ်။', 'Bell button တစ်ချက်နှိပ်ပြီး ဝန်ထမ်းခေါ်ခြင်း သို့မဟုတ် ဘေလ်တောင်းခြင်း ပြုလုပ်နိုင်ပါတယ်။', 'Local-friendly workflow ဖြင့် connection ပြန်ကောင်းလာချိန်အထိ ဆိုင်အလုပ်ကို ဆက်လုပ်နိုင်ပါတယ်။', 'ခလုတ်ကြီးပြီး ရှင်းလင်းသော UI ဖြင့် မိသားစုများ အော်ဒါတင်ရလွယ်ကူစေပါတယ်။'],
+    images: ['best-for-busy-restaurant.png', 'best-for-cozy-cafe.png', 'best-for-ktv.png', 'best-for-hotel.png', 'best-for-dessert.png', 'best-for-new-shop.png', 'best-for-quiet-service.png', 'best-for-offline.png', 'best-for-family.png'],
+  },
+};
+
+let bestForIndex = 0;
+
+function renderBestFor() {
+  const copy = BEST_FOR_CONTENT[currentLang];
+  const image = document.getElementById('bestForImage');
+  const overline = document.getElementById('bestForOverline');
+  const title = document.getElementById('bestForImageTitle');
+  const tagline = document.getElementById('bestForImageTagline');
+  const detail = document.getElementById('bestForDetail');
+  const tabs = document.getElementById('bestForTabs');
+  if (!image || !tabs || !detail) return;
+  const kickerEl = document.querySelector('[data-i18n="bestFor.kicker"]');
+  const headingEl = document.querySelector('[data-i18n="bestFor.heading"]');
+  const subEl = document.querySelector('[data-i18n="bestFor.sub"]');
+  if (kickerEl) kickerEl.textContent = copy.kicker;
+  if (headingEl) headingEl.textContent = copy.heading;
+  if (subEl) subEl.textContent = copy.sub;
+
+  bestForIndex = Math.min(bestForIndex, copy.labels.length - 1);
+  tabs.innerHTML = copy.labels.map((label, index) => `
+    <button class="best-for-tab ${index === bestForIndex ? 'is-active' : ''}" type="button" role="tab" aria-selected="${index === bestForIndex}" data-best-for-index="${index}">${escapeHtml(label)}</button>
+  `).join('');
+
+  const item = (index) => ({ label: copy.labels[index], image: copy.images[index], overline: copy.overlines[index], tagline: copy.taglines[index], problem: copy.problems[index], solution: copy.solutions[index] });
+  const selected = item(bestForIndex);
+  image.src = `assets/${selected.image}`;
+  image.alt = selected.label;
+  overline.textContent = selected.overline;
+  title.textContent = selected.label;
+  tagline.textContent = selected.tagline;
+  detail.innerHTML = `
+    <div class="best-for-detail-block">
+      <span class="best-for-detail-label">${currentLang === 'mm' ? 'ပြဿနာ' : 'THE CHALLENGE'}</span>
+      <p>${escapeHtml(selected.problem)}</p>
+    </div>
+    <div class="best-for-detail-block best-for-detail-solution">
+      <span class="best-for-detail-label">${currentLang === 'mm' ? 'Shinapp ဖြေရှင်းချက်' : 'THE SHINNAPP SOLUTION'}</span>
+      <p>${escapeHtml(selected.solution)}</p>
+    </div>
+  `;
+
+  tabs.querySelectorAll('.best-for-tab').forEach((tab) => {
+    tab.addEventListener('click', () => selectBestFor(Number(tab.dataset.bestForIndex)));
+  });
+}
+
+function selectBestFor(index) {
+  const copy = BEST_FOR_CONTENT[currentLang];
+  bestForIndex = (index + copy.labels.length) % copy.labels.length;
+  const image = document.getElementById('bestForImage');
+  if (image) {
+    image.classList.add('is-changing');
+    window.setTimeout(() => image.classList.remove('is-changing'), 260);
+  }
+  renderBestFor();
+  document.querySelector(`.best-for-tab[data-best-for-index="${bestForIndex}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+}
+
+function wireBestForCarousel() {
+  const showcase = document.getElementById('bestForShowcase');
+  const prev = document.getElementById('bestForPrev');
+  const next = document.getElementById('bestForNext');
+  if (!showcase || !prev || !next) return;
+  prev.addEventListener('click', () => selectBestFor(bestForIndex - 1));
+  next.addEventListener('click', () => selectBestFor(bestForIndex + 1));
+  let startX = 0;
+  showcase.addEventListener('touchstart', (event) => { startX = event.changedTouches[0].clientX; }, { passive: true });
+  showcase.addEventListener('touchend', (event) => {
+    const delta = event.changedTouches[0].clientX - startX;
+    if (Math.abs(delta) > 42) selectBestFor(bestForIndex + (delta < 0 ? 1 : -1));
+  }, { passive: true });
+}
+
+// ============================================================
 // Language
 // ============================================================
 function detectDefaultLang() {
@@ -68,6 +169,7 @@ function setLanguage(lang) {
   document.documentElement.lang = lang === 'mm' ? 'my' : 'en';
   applyStaticTranslations();
   renderPricingPlans();
+  renderBestFor();
   document.querySelectorAll('.lang-toggle .lang-option').forEach((el) => {
     el.classList.toggle('is-active', el.dataset.lang === lang);
   });
@@ -229,5 +331,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setLanguage(currentLang);
   wireLanguageToggle();
   wireStaticLinks();
+  wireBestForCarousel();
+  renderBestFor();
   setupStoryAnimation();
 });

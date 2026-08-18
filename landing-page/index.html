@@ -187,6 +187,35 @@
   </section>
 
   <!-- ============================================================
+       Best for — swipeable audience/category carousel.
+       Images are in assets/best-for-*.png and copy is rendered by app.js.
+       ============================================================ -->
+  <section class="best-for-section" id="bestFor" aria-labelledby="bestForHeading">
+    <div class="best-for-inner">
+      <div class="best-for-heading">
+        <div class="pricing-kicker" data-i18n="bestFor.kicker"></div>
+        <h2 id="bestForHeading" data-i18n="bestFor.heading"></h2>
+        <p class="best-for-sub" data-i18n="bestFor.sub"></p>
+      </div>
+      <div class="best-for-showcase" id="bestForShowcase">
+        <div class="best-for-image-wrap">
+          <img id="bestForImage" class="best-for-image" src="assets/best-for-busy-restaurant.png" alt="" loading="lazy">
+          <div class="best-for-image-shade"></div>
+          <div class="best-for-overlay-copy">
+            <span class="best-for-overline" id="bestForOverline"></span>
+            <h3 id="bestForImageTitle"></h3>
+            <p id="bestForImageTagline"></p>
+          </div>
+          <button class="best-for-arrow best-for-arrow-prev" id="bestForPrev" type="button" aria-label="Previous category">‹</button>
+          <button class="best-for-arrow best-for-arrow-next" id="bestForNext" type="button" aria-label="Next category">›</button>
+          <div class="best-for-tabs" id="bestForTabs" role="tablist" aria-label="Restaurant categories"></div>
+        </div>
+        <div class="best-for-detail" id="bestForDetail"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
        Pricing — cards are rendered by app.js from content.js so the
        EN/MM feature lists never have to be kept in sync by hand.
        ============================================================ -->
