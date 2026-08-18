@@ -99,6 +99,47 @@ function selectBestFor(index) {
   document.querySelector(`.best-for-tab[data-best-for-index="${bestForIndex}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
 }
 
+const ORO_STAGE_ASSETS = [
+  'oro-pose-qr-clean.png',
+  'oro-pose-order-clean.png',
+  'oro-hero-mascot.png',
+  'oro-hero-mascot.png',
+  'oro-hero-mascot.png',
+];
+
+function renderOroStage(index) {
+  const mascot = document.getElementById('oroHeroMascot');
+  const image = document.getElementById('oroStageImage');
+  const card = document.getElementById('oroStageCard');
+  if (!mascot || !image || !card) return;
+  const stage = Math.max(0, Math.min(4, index));
+  const mm = currentLang === 'mm';
+  const cards = mm ? [
+    ['QR Scan', 'စားပွဲက QR ကို scan လုပ်ပါ'],
+    ['Order', 'အော်ဒါကို လွယ်ကူစွာ လက်ခံပါ'],
+    ['Kitchen', 'မီးဖိုချောင်ကို ချက်ချင်းအသိပေးပါ'],
+    ['Notification', 'ဝန်ထမ်းကို တစ်ချက်နှိပ်ပြီး ခေါ်ပါ'],
+    ['Receipt', 'ဘေလ်ကို စုစည်းပြီး စမ်းကြည့်ပါ'],
+  ] : [
+    ['QR Scan', 'Start with one simple scan'],
+    ['Order', 'Keep every order clear'],
+    ['Kitchen', 'Send the right order to the kitchen'],
+    ['Notification', 'Call staff with one gentle tap'],
+    ['Receipt', 'Bring every open order together'],
+  ];
+  mascot.className = `oro-hero-mascot oro-stage-${stage}`;
+  image.classList.add('is-stage-changing');
+  image.src = `assets/${ORO_STAGE_ASSETS[stage]}`;
+  image.alt = `ORO — ${cards[stage][0]}`;
+  window.setTimeout(() => image.classList.remove('is-stage-changing'), 280);
+  const [title, message] = cards[stage];
+  card.innerHTML = `<span class="oro-stage-card-title">${escapeHtml(title)}</span><span class="oro-stage-card-message">${escapeHtml(message)}</span>`;
+  card.setAttribute('aria-hidden', stage === 0 ? 'true' : 'false');
+  if (stage === 4) {
+    card.innerHTML += `<div class="oro-stage-actions"><a href="https://order.shinnapp.com/?store=a8bd97f5-4354-4145-aa8d-6145edde8e9c&amp;table=10" target="_blank" rel="noopener noreferrer">${mm ? 'အစမ်းကြည့်ရန်' : 'Try the demo'}</a><a href="#adminDownloadLink">${mm ? 'Admin App' : 'Admin app'}</a></div>`;
+  }
+}
+
 function wireBestForCarousel() {
   const showcase = document.getElementById('bestForShowcase');
   const prev = document.getElementById('bestForPrev');
@@ -172,6 +213,7 @@ function setLanguage(lang) {
   applyStaticTranslations();
   renderPricingPlans();
   renderBestFor();
+  renderOroStage(0);
   document.querySelectorAll('.lang-toggle .lang-option').forEach((el) => {
     el.classList.toggle('is-active', el.dataset.lang === lang);
   });
@@ -275,9 +317,10 @@ function setupPinnedStory() {
       start: 'top top',
       end: () => '+=' + Math.round(window.innerWidth * (frameCount - 1) * 1.3),
       invalidateOnRefresh: true,
-      onUpdate: (self) => {
+        onUpdate: (self) => {
         const idx = Math.min(frameCount - 1, Math.round(self.progress * scrubDuration));
         dots.forEach((d, i) => d.classList.toggle('is-active', i === idx));
+        renderOroStage(idx);
       },
     },
   });
@@ -306,7 +349,10 @@ function setupStackedStoryFallback() {
         trigger: frame,
         start: 'top 75%',
         toggleActions: 'play none none reverse',
-        onEnter: () => dots.forEach((d, j) => d.classList.toggle('is-active', j === i)),
+        onEnter: () => {
+          dots.forEach((d, j) => d.classList.toggle('is-active', j === i));
+          renderOroStage(i);
+        },
       },
     });
     choreographFrame(tl, frame, i, 0);
@@ -335,5 +381,6 @@ document.addEventListener('DOMContentLoaded', () => {
   wireStaticLinks();
   wireBestForCarousel();
   renderBestFor();
+  renderOroStage(0);
   setupStoryAnimation();
 });
