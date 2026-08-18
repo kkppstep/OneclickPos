@@ -131,7 +131,11 @@ function renderOroStage(index) {
   image.classList.add('is-stage-changing');
   image.src = `assets/${ORO_STAGE_ASSETS[stage]}`;
   image.alt = `ORO — ${cards[stage][0]}`;
-  window.setTimeout(() => image.classList.remove('is-stage-changing'), 280);
+  if (!document.documentElement.classList.contains('static-motion')) {
+    window.setTimeout(() => image.classList.remove('is-stage-changing'), 280);
+  } else {
+    image.classList.remove('is-stage-changing');
+  }
   const [title, message] = cards[stage];
   card.innerHTML = `<span class="oro-stage-card-title">${escapeHtml(title)}</span><span class="oro-stage-card-message">${escapeHtml(message)}</span>`;
   card.setAttribute('aria-hidden', stage === 0 ? 'true' : 'false');
@@ -161,7 +165,10 @@ function wireBestForCarousel() {
 function detectDefaultLang() {
   const stored = localStorage.getItem('lang');
   if (stored === 'en' || stored === 'mm') return stored;
-  return (navigator.language || '').toLowerCase().startsWith('my') ? 'mm' : 'en';
+  // Shinapp's primary landing-page audience is Myanmar. Visitors can still
+  // switch to English with the language toggle, and an explicit saved choice
+  // remains respected above.
+  return 'mm';
 }
 
 let currentLang = detectDefaultLang();
@@ -334,6 +341,21 @@ function setupPinnedStory() {
   return tl;
 }
 
+function setupNativeStoryFallback() {
+  const frames = document.querySelectorAll('.story-frame');
+  const dots = document.querySelectorAll('.story-progress .dot');
+  if (!('IntersectionObserver' in window)) return;
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting || entry.intersectionRatio < 0.35) return;
+      const index = Number(entry.target.dataset.frameIndex || 0);
+      dots.forEach((dot, i) => dot.classList.toggle('is-active', i === index));
+      renderOroStage(index);
+    });
+  }, { threshold: [0.35, 0.65], rootMargin: '-10% 0px -20% 0px' });
+  frames.forEach((frame) => observer.observe(frame));
+}
+
 // Phone/mobile: no pinning or horizontal scrub (scroll-jacking reads
 // as janky on touch, and eats a lot of a phone's scroll budget) —
 // frames stack normally (see the max-width: 899px rule in
@@ -360,7 +382,14 @@ function setupStackedStoryFallback() {
 }
 
 function setupStoryAnimation() {
-  if (!window.gsap || !window.ScrollTrigger) return; // CDN blocked/offline — page still reads fine without motion
+  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  const slowConnection = Boolean(connection && (connection.saveData || /(^|-)2g$/.test(connection.effectiveType || '')));
+  const staticMotion = slowConnection || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  document.documentElement.classList.toggle('static-motion', staticMotion);
+  if (staticMotion || !window.gsap || !window.ScrollTrigger) {
+    setupNativeStoryFallback();
+    return;
+  }
   gsap.registerPlugin(ScrollTrigger);
 
   // GSAP's own recommended pattern for responsive ScrollTrigger setups:

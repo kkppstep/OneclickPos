@@ -153,6 +153,11 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 560; line-height: 1.
 .oro-stage-3 .oro-notification-badge { animation-duration: 1.2s; }
 .oro-stage-card { position: absolute; z-index: 6; left: 50%; bottom: 58px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 150px; padding: 9px 13px; border: 1px solid rgba(221,189,121,0.45); border-radius: 14px; background: rgba(27,21,18,0.82); color: var(--ivory); text-align: center; box-shadow: 0 12px 24px rgba(0,0,0,0.24); opacity: 0; pointer-events: none; transition: opacity 0.25s ease, transform 0.25s ease; }
 .oro-stage-1 .oro-stage-card, .oro-stage-2 .oro-stage-card, .oro-stage-3 .oro-stage-card, .oro-stage-4 .oro-stage-card { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+.oro-stage-4 .oro-stage-card { pointer-events: auto; }
+.oro-stage-actions a { pointer-events: auto; }
+.static-motion .oro-hero-mascot, .static-motion .oro-glow, .static-motion .oro-notification-badge { animation: none !important; }
+.static-motion .oro-hero-mascot img { transition: none !important; }
+.static-motion .oro-stage-card { transition: none !important; }
 .oro-stage-card-title { color: var(--gold-soft); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; }
 .oro-stage-card-message { color: var(--ivory-faint); font-size: 0.72rem; line-height: 1.35; white-space: nowrap; }
 .oro-stage-actions { display: flex; gap: 6px; margin-top: 5px; }
