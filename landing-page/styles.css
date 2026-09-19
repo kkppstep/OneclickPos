@@ -516,3 +516,8 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 560; line-height: 1.
   .oro-hero-mascot, .oro-glow, .oro-notification-badge { animation: none !important; }
 }
 
+
+/* Additive link to the new Supplier Support v1 page. Original landing-page styles remain unchanged. */
+.nav-supplier-link { display: inline-flex; align-items: center; border: 1px solid rgba(221,189,121,0.55); border-radius: 999px; padding: 8px 13px; color: var(--gold-soft); font-size: 0.76rem; font-weight: 700; transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease; }
+.nav-supplier-link:hover { color: var(--ink); background: var(--gold); transform: translateY(-1px); }
+@media (max-width: 620px) { .nav-supplier-link { padding: 7px 9px; font-size: 0.68rem; } }
